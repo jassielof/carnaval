@@ -194,3 +194,18 @@ test "downsample true color to ansi256" {
     const c = Color.rgb(255, 0, 0).downsample(.ansi256);
     try std.testing.expect(c == .ansi256);
 }
+
+test "downsample true color red maps to ansi256 196" {
+    const c = Color.rgb(255, 0, 0).downsample(.ansi256);
+    try std.testing.expectEqualDeep(Color{ .ansi256 = 196 }, c);
+}
+
+test "downsample true color red maps to ansi16 bright_red" {
+    const c = Color.rgb(255, 0, 0).downsample(.ansi16);
+    try std.testing.expectEqualDeep(Color{ .ansi16 = .bright_red }, c);
+}
+
+test "downsample ansi256 196 maps to ansi16 bright_red" {
+    const c = (Color{ .ansi256 = 196 }).downsample(.ansi16);
+    try std.testing.expectEqualDeep(Color{ .ansi16 = .bright_red }, c);
+}

@@ -10,8 +10,12 @@ pub const ColorProfile = enum {
 };
 
 pub fn colorProfile() ColorProfile {
+    return colorProfileForHandle(std.io.getStdOut().handle);
+}
+
+pub fn colorProfileForHandle(handle: std.fs.File.Handle) ColorProfile {
     if (hasEnv("NO_COLOR")) return .none;
-    if (!stdoutIsTty()) return .none;
+    if (!isTtyHandle(handle)) return .none;
 
     if (envValue("TERM")) |v| {
         defer std.heap.page_allocator.free(v);
@@ -47,11 +51,10 @@ fn envValue(name: []const u8) ?[]u8 {
     };
 }
 
-fn stdoutIsTty() bool {
-    const stdout_file = std.io.getStdOut();
+fn isTtyHandle(handle: std.fs.File.Handle) bool {
     if (builtin.os.tag == .windows) {
         var mode: windows.DWORD = 0;
-        return windows.kernel32.GetConsoleMode(stdout_file.handle, &mode) != 0;
+        return windows.kernel32.GetConsoleMode(handle, &mode) != 0;
     }
-    return std.posix.isatty(stdout_file.handle);
+    return std.posix.isatty(handle);
 }

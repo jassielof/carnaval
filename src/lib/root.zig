@@ -13,8 +13,11 @@ pub const Color = color.Color;
 pub const Style = style.Style;
 
 pub const colorProfile = profile.colorProfile;
+pub const colorProfileForHandle = profile.colorProfileForHandle;
 pub const terminalWidth = term.terminalWidth;
+pub const terminalWidthForHandle = term.terminalWidthForHandle;
 pub const wrap = term.wrap;
+pub const wrapAnsi = term.wrapAnsi;
 
 test {
     _ = escape;
