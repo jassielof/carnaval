@@ -1,23 +1,35 @@
-//! By convention, root.zig is the root source file when making a library.
 const std = @import("std");
 
-pub fn bufferedPrint() !void {
-    // Stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    var stdout_buffer: [1024]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
-    const stdout = &stdout_writer.interface;
+pub const escape = @import("escape.zig");
+pub const profile = @import("profile.zig");
+pub const color = @import("color.zig");
+pub const style = @import("style.zig");
+pub const term = @import("term.zig");
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
+pub const ColorProfile = profile.ColorProfile;
+pub const Ansi16 = color.Ansi16;
+pub const Rgb = color.Rgb;
+pub const Color = color.Color;
+pub const Style = style.Style;
 
-    try stdout.flush(); // Don't forget to flush!
+pub const colorProfile = profile.colorProfile;
+pub const terminalWidth = term.terminalWidth;
+pub const wrap = term.wrap;
+
+test {
+    _ = escape;
+    _ = profile;
+    _ = color;
+    _ = style;
+    _ = term;
 }
 
-pub fn add(a: i32, b: i32) i32 {
-    return a + b;
-}
+test "public API basic render" {
+    const allocator = std.testing.allocator;
+    const s = Style.init().fg(.{ .true_color = .{ .r = 255, .g = 120, .b = 0 } }).bolded();
 
-test "basic add functionality" {
-    try std.testing.expect(add(3, 7) == 10);
+    const out = try s.renderAllocWithProfile("carnaval", allocator, .true_color);
+    defer allocator.free(out);
+
+    try std.testing.expect(out.len > "carnaval".len);
 }
