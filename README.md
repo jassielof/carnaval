@@ -1,1 +1,3 @@
-# carnaval
+# Carnaval
+
+Terminal styling for Zig.
