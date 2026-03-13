@@ -91,49 +91,71 @@ fn wrapSingleLine(out: *std.ArrayList(u8), line: []const u8, width: usize, inden
     if (line.len == 0) return;
 
     var word_it = std.mem.tokenizeAny(u8, line, " \t");
-    var line_len: usize = 0;
+    var line_display: usize = 0;
 
     while (word_it.next()) |word| {
-        if (line_len == 0) {
-            try appendWordChunks(out, word, width, indent, false, allocator);
-            line_len = @min(word.len, width);
+        const word_display = visibleWidthUtf8(word);
+
+        if (line_display == 0) {
+            line_display = try appendWordChunks(out, word, width, indent, false, allocator);
             continue;
         }
 
-        if (line_len + 1 + word.len <= width) {
+        if (line_display + 1 + word_display <= width) {
             try out.append(allocator, ' ');
             try out.appendSlice(allocator, word);
-            line_len += 1 + word.len;
+            line_display += 1 + word_display;
             continue;
         }
 
         try out.append(allocator, '\n');
         for (0..indent) |_| try out.append(allocator, ' ');
-        try appendWordChunks(out, word, width, indent, true, allocator);
-        line_len = @min(word.len, width);
+        line_display = try appendWordChunks(out, word, width, indent, true, allocator);
     }
 }
 
-fn appendWordChunks(out: *std.ArrayList(u8), word: []const u8, width: usize, indent: usize, continuation: bool, allocator: std.mem.Allocator) !void {
-    if (word.len <= width) {
+fn appendWordChunks(out: *std.ArrayList(u8), word: []const u8, width: usize, indent: usize, continuation: bool, allocator: std.mem.Allocator) !usize {
+    const word_display = visibleWidthUtf8(word);
+    if (word_display <= width) {
         try out.appendSlice(allocator, word);
-        return;
+        return word_display;
     }
 
-    var start: usize = 0;
-    var first = true;
-    while (start < word.len) {
-        if (!first or continuation) {
+    var i: usize = 0;
+    var chunk_start: usize = 0;
+    var chunk_display: usize = 0;
+    var started_any = false;
+    var trailing_display: usize = 0;
+
+    while (i < word.len) {
+        const unit = utf8Unit(word, i);
+        if (chunk_display + unit.display_width > width and chunk_display > 0) {
+            if (started_any or continuation) {
+                try out.append(allocator, '\n');
+                for (0..indent) |_| try out.append(allocator, ' ');
+            }
+            try out.appendSlice(allocator, word[chunk_start..i]);
+            trailing_display = chunk_display;
+            chunk_start = i;
+            chunk_display = 0;
+            started_any = true;
+            continue;
+        }
+
+        i += unit.len;
+        chunk_display += unit.display_width;
+    }
+
+    if (chunk_start < word.len) {
+        if (started_any or continuation) {
             try out.append(allocator, '\n');
             for (0..indent) |_| try out.append(allocator, ' ');
         }
-
-        const remaining = word.len - start;
-        const take = @min(remaining, width);
-        try out.appendSlice(allocator, word[start .. start + take]);
-        start += take;
-        first = false;
+        try out.appendSlice(allocator, word[chunk_start..]);
+        trailing_display = chunk_display;
     }
+
+    return trailing_display;
 }
 
 fn wrapSingleLineAnsi(out: *std.ArrayList(u8), line: []const u8, width: usize, indent: usize, allocator: std.mem.Allocator) !void {
@@ -146,8 +168,7 @@ fn wrapSingleLineAnsi(out: *std.ArrayList(u8), line: []const u8, width: usize, i
         const word_visible = visibleWidth(word);
 
         if (line_visible == 0) {
-            try appendWordChunksAnsi(out, word, width, indent, false, allocator);
-            line_visible = @min(word_visible, width);
+            line_visible = try appendWordChunksAnsi(out, word, width, indent, false, allocator);
             continue;
         }
 
@@ -160,21 +181,21 @@ fn wrapSingleLineAnsi(out: *std.ArrayList(u8), line: []const u8, width: usize, i
 
         try out.append(allocator, '\n');
         for (0..indent) |_| try out.append(allocator, ' ');
-        try appendWordChunksAnsi(out, word, width, indent, true, allocator);
-        line_visible = @min(word_visible, width);
+        line_visible = try appendWordChunksAnsi(out, word, width, indent, true, allocator);
     }
 }
 
-fn appendWordChunksAnsi(out: *std.ArrayList(u8), word: []const u8, width: usize, indent: usize, continuation: bool, allocator: std.mem.Allocator) !void {
+fn appendWordChunksAnsi(out: *std.ArrayList(u8), word: []const u8, width: usize, indent: usize, continuation: bool, allocator: std.mem.Allocator) !usize {
     if (visibleWidth(word) <= width) {
         try out.appendSlice(allocator, word);
-        return;
+        return visibleWidth(word);
     }
 
     var i: usize = 0;
     var chunk_start: usize = 0;
     var chunk_visible: usize = 0;
     var started_any = false;
+    var trailing_visible: usize = 0;
 
     while (i < word.len) {
         const esc_len = ansiSeqLen(word[i..]);
@@ -183,20 +204,22 @@ fn appendWordChunksAnsi(out: *std.ArrayList(u8), word: []const u8, width: usize,
             continue;
         }
 
-        if (chunk_visible == width) {
+        const unit = utf8Unit(word, i);
+        if (chunk_visible + unit.display_width > width and chunk_visible > 0) {
             if (started_any or continuation) {
                 try out.append(allocator, '\n');
                 for (0..indent) |_| try out.append(allocator, ' ');
             }
             try out.appendSlice(allocator, word[chunk_start..i]);
+            trailing_visible = chunk_visible;
             chunk_start = i;
             chunk_visible = 0;
             started_any = true;
             continue;
         }
 
-        i += 1;
-        chunk_visible += 1;
+        i += unit.len;
+        chunk_visible += unit.display_width;
     }
 
     if (chunk_start < word.len) {
@@ -205,7 +228,10 @@ fn appendWordChunksAnsi(out: *std.ArrayList(u8), word: []const u8, width: usize,
             for (0..indent) |_| try out.append(allocator, ' ');
         }
         try out.appendSlice(allocator, word[chunk_start..]);
+        trailing_visible = chunk_visible;
     }
+
+    return trailing_visible;
 }
 
 fn visibleWidth(s: []const u8) usize {
@@ -217,10 +243,85 @@ fn visibleWidth(s: []const u8) usize {
             i += esc_len;
             continue;
         }
-        i += 1;
-        visible += 1;
+
+        const unit = utf8Unit(s, i);
+        i += unit.len;
+        visible += unit.display_width;
     }
     return visible;
+}
+
+fn visibleWidthUtf8(s: []const u8) usize {
+    var i: usize = 0;
+    var visible: usize = 0;
+    while (i < s.len) {
+        const unit = utf8Unit(s, i);
+        i += unit.len;
+        visible += unit.display_width;
+    }
+    return visible;
+}
+
+const Utf8Unit = struct {
+    len: usize,
+    display_width: usize,
+};
+
+fn utf8Unit(s: []const u8, index: usize) Utf8Unit {
+    const first = s[index];
+    const seq_len = std.unicode.utf8ByteSequenceLength(first) catch {
+        return .{ .len = 1, .display_width = 1 };
+    };
+    const len: usize = seq_len;
+    if (index + len > s.len) return .{ .len = 1, .display_width = 1 };
+
+    if (len == 1) {
+        return .{ .len = 1, .display_width = codepointWidth(first) };
+    }
+
+    const cp = std.unicode.utf8Decode(s[index .. index + len]) catch {
+        return .{ .len = 1, .display_width = 1 };
+    };
+    return .{ .len = len, .display_width = codepointWidth(cp) };
+}
+
+fn codepointWidth(cp: u21) usize {
+    if (cp == 0) return 0;
+    if (cp < 32 or (cp >= 0x7f and cp < 0xa0)) return 0;
+    if (cp == 0x200d) return 0;
+    if (inRange(cp, 0x0300, 0x036f) or
+        inRange(cp, 0x1ab0, 0x1aff) or
+        inRange(cp, 0x1dc0, 0x1dff) or
+        inRange(cp, 0x20d0, 0x20ff) or
+        inRange(cp, 0xfe20, 0xfe2f) or
+        inRange(cp, 0xfe00, 0xfe0f) or
+        inRange(cp, 0xe0100, 0xe01ef))
+    {
+        return 0;
+    }
+
+    if (isWideCodepoint(cp)) return 2;
+    return 1;
+}
+
+fn isWideCodepoint(cp: u21) bool {
+    return inRange(cp, 0x1100, 0x115f) or
+        inRange(cp, 0x2329, 0x232a) or
+        inRange(cp, 0x2e80, 0xa4cf) or
+        inRange(cp, 0xac00, 0xd7a3) or
+        inRange(cp, 0xf900, 0xfaff) or
+        inRange(cp, 0xfe10, 0xfe19) or
+        inRange(cp, 0xfe30, 0xfe6f) or
+        inRange(cp, 0xff00, 0xff60) or
+        inRange(cp, 0xffe0, 0xffe6) or
+        inRange(cp, 0x1f300, 0x1f64f) or
+        inRange(cp, 0x1f680, 0x1f6ff) or
+        inRange(cp, 0x1f900, 0x1f9ff) or
+        inRange(cp, 0x20000, 0x3fffd);
+}
+
+fn inRange(cp: u21, lo: u21, hi: u21) bool {
+    return cp >= lo and cp <= hi;
 }
 
 fn ansiSeqLen(s: []const u8) usize {
@@ -250,4 +351,29 @@ test "wrap ansi paragraph" {
     defer allocator.free(wrapped);
 
     try std.testing.expectEqualStrings("\x1b[31malpha beta\n  gamma\x1b[0m", wrapped);
+}
+
+test "wrap utf8 cjk display width" {
+    const allocator = std.testing.allocator;
+    const wrapped = try wrap("你好世界 hello", 6, 2, allocator);
+    defer allocator.free(wrapped);
+
+    try std.testing.expectEqualStrings("你好世\n  界\n  hello", wrapped);
+}
+
+test "wrap utf8 combining marks" {
+    const allocator = std.testing.allocator;
+    const wrapped = try wrap("e\u{0301}e\u{0301} e\u{0301}", 3, 2, allocator);
+    defer allocator.free(wrapped);
+
+    try std.testing.expectEqualStrings("e\u{0301}e\u{0301}\n  e\u{0301}", wrapped);
+}
+
+test "wrap ansi utf8 display width" {
+    const allocator = std.testing.allocator;
+    const src = "\x1b[31m你好世界\x1b[0m ok";
+    const wrapped = try wrapAnsi(src, 6, 2, allocator);
+    defer allocator.free(wrapped);
+
+    try std.testing.expectEqualStrings("\x1b[31m你好世\n  界\x1b[0m ok", wrapped);
 }
