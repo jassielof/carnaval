@@ -1,6 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const windows = std.os.windows;
+const term = @import("term.zig");
 
 pub const ColorProfile = enum {
     none,
@@ -10,10 +10,12 @@ pub const ColorProfile = enum {
 };
 
 pub fn colorProfile() ColorProfile {
-    return colorProfileForHandle(std.io.getStdOut().handle);
+    return colorProfileForHandle(std.fs.File.stdout().handle);
 }
 
 pub fn colorProfileForHandle(handle: std.fs.File.Handle) ColorProfile {
+    term.prepareWindowsConsoleIfNeeded(handle);
+
     if (hasEnv("NO_COLOR")) return .none;
     if (!isTtyHandle(handle)) return .none;
 
@@ -52,9 +54,6 @@ fn envValue(name: []const u8) ?[]u8 {
 }
 
 fn isTtyHandle(handle: std.fs.File.Handle) bool {
-    if (builtin.os.tag == .windows) {
-        var mode: windows.DWORD = 0;
-        return windows.kernel32.GetConsoleMode(handle, &mode) != 0;
-    }
+    if (builtin.os.tag == .windows) return term.isWindowsConsoleHandle(handle);
     return std.posix.isatty(handle);
 }

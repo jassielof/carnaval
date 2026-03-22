@@ -1,11 +1,43 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+var windows_console_utf8_mutex: std.Thread.Mutex = .{};
+var windows_console_utf8_done: bool = false;
+
+/// `true` when `handle` is a Windows console device (as opposed to a pipe or file).
+pub fn isWindowsConsoleHandle(handle: std.fs.File.Handle) bool {
+    if (builtin.os.tag != .windows) return false;
+    var mode: std.os.windows.DWORD = 0;
+    return std.os.windows.kernel32.GetConsoleMode(handle, &mode) != 0;
+}
+
+/// If `handle` is a Windows console, selects UTF-8 (code page 65001) once per process
+/// so UTF-8 output decodes correctly. No-op on other OSes or non-console handles.
+///
+/// Called automatically from `terminalWidthForHandle`, `colorProfileForHandle`, and
+/// Unicode table rendering. Go / Lip Gloss do not need an equivalent: the Go runtime
+/// uses different Windows console integration; Zig writes UTF-8 bytes and must set the
+/// console code page (or use wide APIs) for correct display.
+pub fn prepareWindowsConsoleIfNeeded(handle: std.fs.File.Handle) void {
+    if (builtin.os.tag != .windows) return;
+    if (!isWindowsConsoleHandle(handle)) return;
+
+    windows_console_utf8_mutex.lock();
+    defer windows_console_utf8_mutex.unlock();
+    if (windows_console_utf8_done) return;
+    windows_console_utf8_done = true;
+
+    const CP_UTF8: std.os.windows.UINT = 65001;
+    _ = std.os.windows.kernel32.SetConsoleOutputCP(CP_UTF8);
+}
+
 pub fn terminalWidth() usize {
-    return terminalWidthForHandle(std.io.getStdOut().handle);
+    return terminalWidthForHandle(std.fs.File.stdout().handle);
 }
 
 pub fn terminalWidthForHandle(handle: std.fs.File.Handle) usize {
+    prepareWindowsConsoleIfNeeded(handle);
+
     if (ttyWidth(handle)) |w| {
         if (w > 0) return w;
     }
@@ -249,6 +281,11 @@ fn visibleWidth(s: []const u8) usize {
         visible += unit.display_width;
     }
     return visible;
+}
+
+/// Terminal display width for UTF-8 text (excludes ANSI sequences; use `wrapAnsi` helpers for styled strings).
+pub fn utf8DisplayWidth(s: []const u8) usize {
+    return visibleWidthUtf8(s);
 }
 
 fn visibleWidthUtf8(s: []const u8) usize {
