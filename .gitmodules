@@ -1,9 +1,9 @@
 [submodule "modules/mibu"]
-	path = modules/mibu
+	path = references/mibu
 	url = https://github.com/xyaman/mibu
 [submodule "modules/lipgloss"]
-	path = modules/lipgloss
+	path = references/lipgloss
 	url = https://github.com/charmbracelet/lipgloss
 [submodule "modules/chroma-zig"]
-	path = modules/chroma-zig
+	path = references/chroma-zig
 	url = https://github.com/adia-dev/chroma-zig
