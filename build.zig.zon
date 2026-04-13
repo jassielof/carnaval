@@ -1,6 +1,6 @@
 .{
     .name = .carnaval,
-    .version = "0.0.0",
+    .version = "0.1.0",
     .fingerprint = 0x9d6ba997bd24786e,
     .minimum_zig_version = "0.15.2",
     .paths = .{
