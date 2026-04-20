@@ -1,10 +1,9 @@
-//! Tabular output: ASCII grid (portable), Markdown pipe tables (GFM), and Unicode
-//! light borders similar to Charmbracelet Lip Gloss `Border.Normal`.
+//! Tabular output: ASCII grid (portable), Markdown pipe tables (GFM), and Unicode light borders similar to Charmbracelet Lip Gloss `Border.Normal`.
 //!
-//! On Windows consoles, UTF-8 output is enabled automatically the first time Carnaval
-//! talks to the console (`terminalWidth*`, `colorProfile*`, or a Unicode table).
+//! On Windows consoles, UTF-8 output is enabled automatically the first time Carnaval talks to the console (`terminalWidth*`, `colorProfile*`, or a Unicode table).
 
 const std = @import("std");
+
 const ColorProfile = @import("../profile.zig").ColorProfile;
 const Style = @import("../style.zig").Style;
 const term = @import("../term.zig");
@@ -45,7 +44,7 @@ pub fn renderTableStyled(
     }
 
     if (style == .unicode) {
-        term.prepareWindowsConsoleIfNeeded(std.fs.File.stdout().handle);
+        term.prepareWindowsConsoleIfNeeded(std.Io.File.stdout().handle);
     }
 
     const widths = try computeWidths(headers, rows, allocator);
@@ -94,7 +93,8 @@ fn computeWidths(headers: []const []const u8, rows: []const []const []const u8, 
 }
 
 fn writeRepeat(writer: anytype, byte: u8, count: usize) !void {
-    for (0..count) |_| try writer.writeByte(byte);
+    var w = writer;
+    for (0..count) |_| try w.writeByte(byte);
 }
 
 fn writeRepeatUtf8(writer: anytype, comptime utf8_char: []const u8, count: usize) !void {
@@ -125,8 +125,6 @@ fn writePaddedBodyCell(writer: anytype, cell: []const u8, col_width: usize) !voi
     if (dw < col_width) try writeRepeat(writer, ' ', col_width - dw);
 }
 
-// --- ASCII ------------------------------------------------------------------
-
 fn renderAsciiGrid(
     writer: anytype,
     headers: []const []const u8,
@@ -144,12 +142,13 @@ fn renderAsciiGrid(
 }
 
 fn asciiTopOrMidOrBottom(writer: anytype, widths: []const usize) !void {
-    try writer.writeAll("+");
+    var w = writer;
+    try w.writeAll("+");
     for (widths) |cw| {
-        try writeRepeat(writer, '-', cw + 2);
-        try writer.writeAll("+");
+        try writeRepeat(w, '-', cw + 2);
+        try w.writeAll("+");
     }
-    try writer.writeAll("\n");
+    try w.writeAll("\n");
 }
 
 fn asciiHeaderRow(
@@ -158,13 +157,14 @@ fn asciiHeaderRow(
     widths: []const usize,
     color_profile: ColorProfile,
 ) !void {
-    try writer.writeAll("|");
+    var w = writer;
+    try w.writeAll("|");
     for (headers, widths) |h, cw| {
-        try writer.writeByte(' ');
-        try writePaddedHeaderCell(writer, h, cw, color_profile);
-        try writer.writeAll(" |");
+        try w.writeByte(' ');
+        try writePaddedHeaderCell(w, h, cw, color_profile);
+        try w.writeAll(" |");
     }
-    try writer.writeAll("\n");
+    try w.writeAll("\n");
 }
 
 fn asciiBodyRow(writer: anytype, cells: []const []const u8, widths: []const usize) !void {
@@ -176,8 +176,6 @@ fn asciiBodyRow(writer: anytype, cells: []const []const u8, widths: []const usiz
     }
     try writer.writeAll("\n");
 }
-
-// --- Markdown (GFM) ---------------------------------------------------------
 
 fn renderMarkdown(
     writer: anytype,
@@ -222,8 +220,6 @@ fn mdSeparator(writer: anytype, widths: []const usize) !void {
     }
     try writer.writeAll("\n");
 }
-
-// --- Unicode (Lip Gloss Normal / light box) ---------------------------------
 
 fn renderUnicodeGrid(
     writer: anytype,
@@ -296,8 +292,7 @@ fn uniBodyRow(writer: anytype, cells: []const []const u8, widths: []const usize)
 test "ascii table plain" {
     const allocator = std.testing.allocator;
     var buf: [512]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    const w = fbs.writer();
+    var fbw = std.Io.Writer.fixed(&buf);
 
     try renderAscii(
         allocator,
@@ -305,7 +300,7 @@ test "ascii table plain" {
         &.{
             &.{ "docent", "67bf0813" },
         },
-        w,
+        fbw,
     );
 
     const expected =
@@ -314,32 +309,44 @@ test "ascii table plain" {
         "+--------+----------+\n" ++
         "| docent | 67bf0813 |\n" ++
         "+--------+----------+\n";
-    try std.testing.expectEqualStrings(expected, fbs.getWritten());
+    try std.testing.expectEqualStrings(expected, fbw.getWritten());
 }
 
 test "ascii table utf8 width padding" {
     const allocator = std.testing.allocator;
     var buf: [256]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    const w = fbs.writer();
+    // var fbs = std.io.fixedBufferStream(&buf);
+    // const w = fbs.writer();
 
+    var fbw = std.Io.Writer.fixed(&buf);
+
+    // try renderAscii(
+    //     allocator,
+    //     &.{ "名", "x" },
+    //     &.{
+    //         &.{ "你好", "y" },
+    //     },
+    //     w,
+    // );
     try renderAscii(
         allocator,
         &.{ "名", "x" },
         &.{
             &.{ "你好", "y" },
         },
-        w,
+        fbw,
     );
 
-    try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "| 你好") != null);
+    // try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "| 你好") != null);
+    try std.testing.expect(std.mem.indexOf(u8, fbw.consumeAll(), "| 你好") != null);
 }
 
 test "markdown table" {
     const allocator = std.testing.allocator;
     var buf: [512]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    const w = fbs.writer();
+    // var fbs = std.io.fixedBufferStream(&buf);
+    var fbw = std.Io.Writer.fixed(&buf);
+    // const w = fbs.writer();
 
     try renderTable(
         allocator,
@@ -347,11 +354,12 @@ test "markdown table" {
         &.{
             &.{ "docent", "67bf0813" },
         },
-        w,
+        fbw,
         .markdown,
     );
 
-    const s = fbs.getWritten();
+    // const s = fbs.getWritten();
+    const s = fbw.buffered();
     try std.testing.expect(std.mem.startsWith(u8, s, "| ALIAS "));
     try std.testing.expect(std.mem.indexOf(u8, s, "|---") != null);
     try std.testing.expect(std.mem.indexOf(u8, s, "| docent ") != null);
@@ -360,8 +368,9 @@ test "markdown table" {
 test "unicode table structure" {
     const allocator = std.testing.allocator;
     var buf: [512]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    const w = fbs.writer();
+    // var fbs = std.io.fixedBufferStream(&buf);
+    // const w = fbs.writer();
+    var fbw = std.Io.Writer.fixed(&buf);
 
     try renderTable(
         allocator,
@@ -369,11 +378,11 @@ test "unicode table structure" {
         &.{
             &.{ "1", "2" },
         },
-        w,
+        fbw,
         .unicode,
     );
 
-    const s = fbs.getWritten();
+    const s = fbw.buffered();
     try std.testing.expect(std.mem.startsWith(u8, s, "┌"));
     try std.testing.expect(std.mem.indexOf(u8, s, "┬") != null);
     try std.testing.expect(std.mem.indexOf(u8, s, "│") != null);

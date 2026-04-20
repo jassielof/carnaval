@@ -5,20 +5,16 @@ var windows_console_utf8_mutex: std.Thread.Mutex = .{};
 var windows_console_utf8_done: bool = false;
 
 /// `true` when `handle` is a Windows console device (as opposed to a pipe or file).
-pub fn isWindowsConsoleHandle(handle: std.fs.File.Handle) bool {
+pub fn isWindowsConsoleHandle(handle: std.Io.File.Handle) bool {
     if (builtin.os.tag != .windows) return false;
     var mode: std.os.windows.DWORD = 0;
     return std.os.windows.kernel32.GetConsoleMode(handle, &mode) != 0;
 }
 
-/// If `handle` is a Windows console, selects UTF-8 (code page 65001) once per process
-/// so UTF-8 output decodes correctly. No-op on other OSes or non-console handles.
+/// If `handle` is a Windows console, selects UTF-8 (code page 65001) once per process so UTF-8 output decodes correctly. No-op on other OSes or non-console handles.
 ///
-/// Called automatically from `terminalWidthForHandle`, `colorProfileForHandle`, and
-/// Unicode table rendering. Go / Lip Gloss do not need an equivalent: the Go runtime
-/// uses different Windows console integration; Zig writes UTF-8 bytes and must set the
-/// console code page (or use wide APIs) for correct display.
-pub fn prepareWindowsConsoleIfNeeded(handle: std.fs.File.Handle) void {
+/// Called automatically from `terminalWidthForHandle`, `colorProfileForHandle`, and Unicode table rendering. Go / Lip Gloss do not need an equivalent: the Go runtime uses different Windows console integration; Zig writes UTF-8 bytes and must set the console code page (or use wide APIs) for correct display.
+pub fn prepareWindowsConsoleIfNeeded(handle: std.Io.File.Handle) void {
     if (builtin.os.tag != .windows) return;
     if (!isWindowsConsoleHandle(handle)) return;
 

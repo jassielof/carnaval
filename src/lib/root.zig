@@ -28,7 +28,7 @@ pub const renderTableStyled = table.renderTableStyled;
 pub const renderAsciiTable = table.renderAscii;
 pub const renderAsciiTableStyled = table.renderAsciiStyled;
 
-test {
+comptime {
     _ = escape;
     _ = profile;
     _ = color;
