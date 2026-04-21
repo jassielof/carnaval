@@ -1,8 +1,10 @@
 const std = @import("std");
+
 const Color = @import("color.zig").Color;
 const ColorProfile = @import("profile.zig").ColorProfile;
-const profile = @import("profile.zig");
 const escape = @import("escape.zig");
+const ListSink = @import("ListSink.zig");
+const profile = @import("profile.zig");
 
 pub const Style = struct {
     fg_color: ?Color = null,
@@ -147,15 +149,6 @@ pub const Style = struct {
             self.underline or
             self.dim or
             self.strikethrough;
-    }
-};
-
-const ListSink = struct {
-    list: *std.ArrayList(u8),
-    allocator: std.mem.Allocator,
-
-    pub fn writeAll(self: *ListSink, bytes: []const u8) !void {
-        try self.list.appendSlice(self.allocator, bytes);
     }
 };
 

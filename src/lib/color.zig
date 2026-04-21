@@ -1,6 +1,12 @@
 const std = @import("std");
+
 const ColorProfile = @import("profile.zig").ColorProfile;
 const escape = @import("escape.zig");
+pub const Rgb = @import("RgbColor.zig");
+
+
+
+
 
 pub const Ansi16 = enum(u8) {
     black = 0,
@@ -21,11 +27,7 @@ pub const Ansi16 = enum(u8) {
     bright_white = 15,
 };
 
-pub const Rgb = struct {
-    r: u8,
-    g: u8,
-    b: u8,
-};
+
 
 pub const Color = union(enum) {
     none,
