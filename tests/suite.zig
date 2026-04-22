@@ -1,9 +1,9 @@
 const std = @import("std");
+const allocator = std.testing.allocator;
 
 const carnaval = @import("carnaval");
 
-test "integration: wrap with indent" {
-    const allocator = std.testing.allocator;
+test "wrap with indent" {
     const wrapped = try carnaval.wrap("A small sentence for wrapping", 12, 4, allocator);
 
     defer allocator.free(wrapped);
@@ -11,8 +11,7 @@ test "integration: wrap with indent" {
     try std.testing.expectEqualStrings("A small\n    sentence for\n    wrapping", wrapped);
 }
 
-test "integration: style render uses reset" {
-    const allocator = std.testing.allocator;
+test "style render uses reset" {
     const st = carnaval.Style.init()
         .fg(.{ .ansi16 = .green })
         .withUnderline(true);
