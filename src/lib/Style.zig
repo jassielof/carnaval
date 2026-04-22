@@ -3,7 +3,6 @@ const std = @import("std");
 const Color = @import("color.zig").Color;
 const ColorProfile = @import("profile.zig").ColorProfile;
 const escape = @import("escape.zig");
-const ListSink = @import("ListSink.zig");
 const profile = @import("profile.zig");
 
 const Style = @This();
@@ -82,11 +81,11 @@ pub fn striked(self: Style) Style {
     return self.withStrikethrough(true);
 }
 
-pub fn render(self: Style, text: []const u8, writer: anytype) !void {
+pub fn render(self: Style, text: []const u8, writer: *std.Io.Writer) !void {
     try self.renderWithProfile(text, writer, profile.colorProfile());
 }
 
-pub fn renderWithProfile(self: Style, text: []const u8, writer: anytype, color_profile: ColorProfile) !void {
+pub fn renderWithProfile(self: Style, text: []const u8, writer: *std.Io.Writer, color_profile: ColorProfile) !void {
     if (color_profile == .none or !self.hasFormatting()) {
         try writer.writeAll(text);
         return;
@@ -130,16 +129,11 @@ pub fn renderAlloc(self: Style, text: []const u8, allocator: std.mem.Allocator) 
 }
 
 pub fn renderAllocWithProfile(self: Style, text: []const u8, allocator: std.mem.Allocator, color_profile: ColorProfile) ![]u8 {
-    var out = try std.ArrayList(u8).initCapacity(allocator, 0);
-    defer out.deinit(allocator);
+    var writer = std.Io.Writer.Allocating.init(allocator);
+    defer writer.deinit();
 
-    var sink = ListSink{
-        .list = &out,
-        .allocator = allocator,
-    };
-
-    try self.renderWithProfile(text, &sink, color_profile);
-    return out.toOwnedSlice(allocator);
+    try self.renderWithProfile(text, &writer.writer, color_profile);
+    return writer.toOwnedSlice();
 }
 
 fn hasFormatting(self: Style) bool {

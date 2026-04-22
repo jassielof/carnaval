@@ -22,7 +22,7 @@ pub fn renderTable(
     allocator: std.mem.Allocator,
     headers: []const []const u8,
     rows: []const []const []const u8,
-    writer: anytype,
+    writer: *std.Io.Writer,
     style: TableStyle,
 ) !void {
     return renderTableStyled(allocator, headers, rows, writer, .none, style);
@@ -33,7 +33,7 @@ pub fn renderTableStyled(
     allocator: std.mem.Allocator,
     headers: []const []const u8,
     rows: []const []const []const u8,
-    writer: anytype,
+    writer: *std.Io.Writer,
     color_profile: ColorProfile,
     style: TableStyle,
 ) !void {
@@ -62,7 +62,7 @@ pub fn renderAscii(
     allocator: std.mem.Allocator,
     headers: []const []const u8,
     rows: []const []const []const u8,
-    writer: anytype,
+    writer: *std.Io.Writer,
 ) !void {
     return renderTable(allocator, headers, rows, writer, .ascii);
 }
@@ -72,7 +72,7 @@ pub fn renderAsciiStyled(
     allocator: std.mem.Allocator,
     headers: []const []const u8,
     rows: []const []const []const u8,
-    writer: anytype,
+    writer: *std.Io.Writer,
     color_profile: ColorProfile,
 ) !void {
     return renderTableStyled(allocator, headers, rows, writer, color_profile, .ascii);
@@ -92,17 +92,16 @@ fn computeWidths(headers: []const []const u8, rows: []const []const []const u8, 
     return w;
 }
 
-fn writeRepeat(writer: anytype, byte: u8, count: usize) !void {
-    var w = writer;
-    for (0..count) |_| try w.writeByte(byte);
+fn writeRepeat(writer: *std.Io.Writer, byte: u8, count: usize) !void {
+    for (0..count) |_| try writer.writeByte(byte);
 }
 
-fn writeRepeatUtf8(writer: anytype, comptime utf8_char: []const u8, count: usize) !void {
+fn writeRepeatUtf8(writer: *std.Io.Writer, comptime utf8_char: []const u8, count: usize) !void {
     for (0..count) |_| try writer.writeAll(utf8_char);
 }
 
 fn writePaddedHeaderCell(
-    writer: anytype,
+    writer: *std.Io.Writer,
     header: []const u8,
     col_width: usize,
     color_profile: ColorProfile,
@@ -119,14 +118,14 @@ fn writePaddedHeaderCell(
     }
 }
 
-fn writePaddedBodyCell(writer: anytype, cell: []const u8, col_width: usize) !void {
+fn writePaddedBodyCell(writer: *std.Io.Writer, cell: []const u8, col_width: usize) !void {
     try writer.writeAll(cell);
     const dw = term.utf8DisplayWidth(cell);
     if (dw < col_width) try writeRepeat(writer, ' ', col_width - dw);
 }
 
 fn renderAsciiGrid(
-    writer: anytype,
+    writer: *std.Io.Writer,
     headers: []const []const u8,
     rows: []const []const []const u8,
     widths: []const usize,
@@ -141,33 +140,31 @@ fn renderAsciiGrid(
     try asciiTopOrMidOrBottom(writer, widths);
 }
 
-fn asciiTopOrMidOrBottom(writer: anytype, widths: []const usize) !void {
-    var w = writer;
-    try w.writeAll("+");
+fn asciiTopOrMidOrBottom(writer: *std.Io.Writer, widths: []const usize) !void {
+    try writer.writeAll("+");
     for (widths) |cw| {
-        try writeRepeat(w, '-', cw + 2);
-        try w.writeAll("+");
+        try writeRepeat(writer, '-', cw + 2);
+        try writer.writeAll("+");
     }
-    try w.writeAll("\n");
+    try writer.writeAll("\n");
 }
 
 fn asciiHeaderRow(
-    writer: anytype,
+    writer: *std.Io.Writer,
     headers: []const []const u8,
     widths: []const usize,
     color_profile: ColorProfile,
 ) !void {
-    var w = writer;
-    try w.writeAll("|");
+    try writer.writeAll("|");
     for (headers, widths) |h, cw| {
-        try w.writeByte(' ');
-        try writePaddedHeaderCell(w, h, cw, color_profile);
-        try w.writeAll(" |");
+        try writer.writeByte(' ');
+        try writePaddedHeaderCell(writer, h, cw, color_profile);
+        try writer.writeAll(" |");
     }
-    try w.writeAll("\n");
+    try writer.writeAll("\n");
 }
 
-fn asciiBodyRow(writer: anytype, cells: []const []const u8, widths: []const usize) !void {
+fn asciiBodyRow(writer: *std.Io.Writer, cells: []const []const u8, widths: []const usize) !void {
     try writer.writeAll("|");
     for (cells, widths) |cell, cw| {
         try writer.writeByte(' ');
@@ -178,7 +175,7 @@ fn asciiBodyRow(writer: anytype, cells: []const []const u8, widths: []const usiz
 }
 
 fn renderMarkdown(
-    writer: anytype,
+    writer: *std.Io.Writer,
     headers: []const []const u8,
     rows: []const []const []const u8,
     widths: []const usize,
@@ -192,7 +189,7 @@ fn renderMarkdown(
 }
 
 fn mdRow(
-    writer: anytype,
+    writer: *std.Io.Writer,
     cells: []const []const u8,
     widths: []const usize,
     color_profile: ColorProfile,
@@ -211,7 +208,7 @@ fn mdRow(
     try writer.writeAll("\n");
 }
 
-fn mdSeparator(writer: anytype, widths: []const usize) !void {
+fn mdSeparator(writer: *std.Io.Writer, widths: []const usize) !void {
     try writer.writeAll("|");
     for (widths) |cw| {
         const dash_count = @max(3, cw + 2);
@@ -222,7 +219,7 @@ fn mdSeparator(writer: anytype, widths: []const usize) !void {
 }
 
 fn renderUnicodeGrid(
-    writer: anytype,
+    writer: *std.Io.Writer,
     headers: []const []const u8,
     rows: []const []const []const u8,
     widths: []const usize,
@@ -237,7 +234,7 @@ fn renderUnicodeGrid(
     try uniBottom(writer, widths);
 }
 
-fn uniTop(writer: anytype, widths: []const usize) !void {
+fn uniTop(writer: *std.Io.Writer, widths: []const usize) !void {
     try writer.writeAll("┌");
     for (widths, 0..) |cw, i| {
         try writeRepeatUtf8(writer, "─", cw + 2);
@@ -246,7 +243,7 @@ fn uniTop(writer: anytype, widths: []const usize) !void {
     try writer.writeAll("\n");
 }
 
-fn uniMid(writer: anytype, widths: []const usize) !void {
+fn uniMid(writer: *std.Io.Writer, widths: []const usize) !void {
     try writer.writeAll("├");
     for (widths, 0..) |cw, i| {
         try writeRepeatUtf8(writer, "─", cw + 2);
@@ -255,7 +252,7 @@ fn uniMid(writer: anytype, widths: []const usize) !void {
     try writer.writeAll("\n");
 }
 
-fn uniBottom(writer: anytype, widths: []const usize) !void {
+fn uniBottom(writer: *std.Io.Writer, widths: []const usize) !void {
     try writer.writeAll("└");
     for (widths, 0..) |cw, i| {
         try writeRepeatUtf8(writer, "─", cw + 2);
@@ -265,7 +262,7 @@ fn uniBottom(writer: anytype, widths: []const usize) !void {
 }
 
 fn uniHeaderRow(
-    writer: anytype,
+    writer: *std.Io.Writer,
     headers: []const []const u8,
     widths: []const usize,
     color_profile: ColorProfile,
@@ -279,7 +276,7 @@ fn uniHeaderRow(
     try writer.writeAll("\n");
 }
 
-fn uniBodyRow(writer: anytype, cells: []const []const u8, widths: []const usize) !void {
+fn uniBodyRow(writer: *std.Io.Writer, cells: []const []const u8, widths: []const usize) !void {
     try writer.writeAll("│");
     for (cells, widths) |cell, cw| {
         try writer.writeByte(' ');
@@ -300,7 +297,7 @@ test "ascii table plain" {
         &.{
             &.{ "docent", "67bf0813" },
         },
-        fbw,
+        &fbw,
     );
 
     const expected =
@@ -309,7 +306,7 @@ test "ascii table plain" {
         "+--------+----------+\n" ++
         "| docent | 67bf0813 |\n" ++
         "+--------+----------+\n";
-    try std.testing.expectEqualStrings(expected, fbw.getWritten());
+    try std.testing.expectEqualStrings(expected, fbw.buffered());
 }
 
 test "ascii table utf8 width padding" {
@@ -334,11 +331,11 @@ test "ascii table utf8 width padding" {
         &.{
             &.{ "你好", "y" },
         },
-        fbw,
+        &fbw,
     );
 
     // try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "| 你好") != null);
-    try std.testing.expect(std.mem.indexOf(u8, fbw.consumeAll(), "| 你好") != null);
+    try std.testing.expect(std.mem.indexOf(u8, fbw.buffered(), "| 你好") != null);
 }
 
 test "markdown table" {
@@ -354,7 +351,7 @@ test "markdown table" {
         &.{
             &.{ "docent", "67bf0813" },
         },
-        fbw,
+        &fbw,
         .markdown,
     );
 
@@ -378,7 +375,7 @@ test "unicode table structure" {
         &.{
             &.{ "1", "2" },
         },
-        fbw,
+        &fbw,
         .unicode,
     );
 
@@ -386,5 +383,5 @@ test "unicode table structure" {
     try std.testing.expect(std.mem.startsWith(u8, s, "┌"));
     try std.testing.expect(std.mem.indexOf(u8, s, "┬") != null);
     try std.testing.expect(std.mem.indexOf(u8, s, "│") != null);
-    try std.testing.expect(std.mem.endsWith(u8, std.mem.trimRight(u8, s, "\n"), "┘"));
+    try std.testing.expect(std.mem.endsWith(u8, std.mem.trimEnd(u8, s, "\n"), "┘"));
 }

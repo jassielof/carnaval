@@ -1,9 +1,11 @@
 const std = @import("std");
+
 const carnaval = @import("carnaval");
 
 test "integration: wrap with indent" {
     const allocator = std.testing.allocator;
     const wrapped = try carnaval.wrap("A small sentence for wrapping", 12, 4, allocator);
+
     defer allocator.free(wrapped);
 
     try std.testing.expectEqualStrings("A small\n    sentence for\n    wrapping", wrapped);

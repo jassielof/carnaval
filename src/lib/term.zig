@@ -3,14 +3,18 @@ const builtin = @import("builtin");
 
 const Utf8Unit = @import("Utf8Unit.zig");
 
-var windows_console_utf8_mutex: std.Thread.Mutex = .{};
+extern "kernel32" fn SetConsoleOutputCP(code_page: std.os.windows.UINT) callconv(.winapi) std.os.windows.BOOL;
+extern "kernel32" fn GetConsoleMode(handle: std.os.windows.HANDLE, mode: *std.os.windows.DWORD) callconv(.winapi) std.os.windows.BOOL;
+
+var windows_console_utf8_mutex: std.atomic.Mutex = .unlocked;
 var windows_console_utf8_done: bool = false;
 
 /// `true` when `handle` is a Windows console device (as opposed to a pipe or file).
 pub fn isWindowsConsoleHandle(handle: std.Io.File.Handle) bool {
     if (builtin.os.tag != .windows) return false;
+
     var mode: std.os.windows.DWORD = 0;
-    return std.os.windows.kernel32.GetConsoleMode(handle, &mode) != 0;
+    return GetConsoleMode(handle, &mode).toBool();
 }
 
 /// If `handle` is a Windows console, selects UTF-8 (code page 65001) once per process so UTF-8 output decodes correctly. No-op on other OSes or non-console handles.
@@ -20,13 +24,13 @@ pub fn prepareWindowsConsoleIfNeeded(handle: std.Io.File.Handle) void {
     if (builtin.os.tag != .windows) return;
     if (!isWindowsConsoleHandle(handle)) return;
 
-    windows_console_utf8_mutex.lock();
+    while (!windows_console_utf8_mutex.tryLock()) {}
     defer windows_console_utf8_mutex.unlock();
     if (windows_console_utf8_done) return;
     windows_console_utf8_done = true;
 
     const CP_UTF8: std.os.windows.UINT = 65001;
-    _ = std.os.windows.kernel32.SetConsoleOutputCP(CP_UTF8);
+    _ = SetConsoleOutputCP(CP_UTF8);
 }
 
 pub fn terminalWidth() usize {
