@@ -4,10 +4,6 @@ const ColorProfile = @import("profile.zig").ColorProfile;
 const escape = @import("escape.zig");
 pub const Rgb = @import("RgbColor.zig");
 
-
-
-
-
 pub const Ansi16 = enum(u8) {
     black = 0,
     red = 1,
@@ -26,8 +22,6 @@ pub const Ansi16 = enum(u8) {
     bright_cyan = 14,
     bright_white = 15,
 };
-
-
 
 pub const Color = union(enum) {
     none,

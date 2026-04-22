@@ -15,8 +15,7 @@ pub const profile = @import("profile.zig");
 pub const ColorProfile = profile.ColorProfile;
 pub const colorProfile = profile.colorProfile;
 pub const colorProfileForHandle = profile.colorProfileForHandle;
-pub const style = @import("style.zig");
-pub const Style = style.Style;
+pub const Style = @import("Style.zig");
 pub const term = @import("term.zig");
 pub const terminalWidth = term.terminalWidth;
 pub const terminalWidthForHandle = term.terminalWidthForHandle;
@@ -30,7 +29,7 @@ comptime {
     _ = escape;
     _ = profile;
     _ = color;
-    _ = style;
+    _ = Style;
     _ = term;
     _ = table;
 }

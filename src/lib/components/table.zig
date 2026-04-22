@@ -5,7 +5,7 @@
 const std = @import("std");
 
 const ColorProfile = @import("../profile.zig").ColorProfile;
-const Style = @import("../style.zig").Style;
+const Style = @import("../Style.zig");
 const term = @import("../term.zig");
 
 /// Visual style for `renderTable` / `renderTableStyled`.

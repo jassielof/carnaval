@@ -1,6 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const Utf8Unit = @import("Utf8Unit.zig");
+
 var windows_console_utf8_mutex: std.Thread.Mutex = .{};
 var windows_console_utf8_done: bool = false;
 
@@ -294,11 +296,6 @@ fn visibleWidthUtf8(s: []const u8) usize {
     }
     return visible;
 }
-
-const Utf8Unit = struct {
-    len: usize,
-    display_width: usize,
-};
 
 fn utf8Unit(s: []const u8, index: usize) Utf8Unit {
     const first = s[index];
