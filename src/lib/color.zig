@@ -30,7 +30,13 @@ pub const Color = union(enum) {
     true_color: Rgb,
 
     pub fn rgb(r: u8, g: u8, b: u8) Color {
-        return .{ .true_color = .{ .r = r, .g = g, .b = b } };
+        return .{
+            .true_color = .{
+                .r = r,
+                .g = g,
+                .b = b,
+            },
+        };
     }
 
     pub fn emitFg(self: Color, writer: anytype, profile: ColorProfile) !bool {
