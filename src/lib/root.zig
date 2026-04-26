@@ -43,3 +43,36 @@ test "public API basic render" {
 
     try std.testing.expect(out.len > "carnaval".len);
 }
+
+test Style {
+    const allocator = std.testing.allocator;
+    const s = Style.init().fg(.{ .ansi16 = .green }).bolded();
+
+    const out = try s.renderAllocWithProfile("ok", allocator, .ansi16);
+    defer allocator.free(out);
+
+    try std.testing.expectEqualStrings("\x1b[1m\x1b[32mok\x1b[0m", out);
+}
+
+test renderAsciiTable {
+    var buf: [128]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf);
+
+    try renderAsciiTable(
+        std.testing.allocator,
+        &.{"Name"},
+        &.{
+            &.{"api"},
+        },
+        &writer,
+    );
+
+    try std.testing.expectEqualStrings(
+        "+------+\n" ++
+            "| Name |\n" ++
+            "+------+\n" ++
+            "| api  |\n" ++
+            "+------+\n",
+        writer.buffered(),
+    );
+}

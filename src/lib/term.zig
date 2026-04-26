@@ -290,6 +290,10 @@ pub fn utf8DisplayWidth(s: []const u8) usize {
     return visibleWidthUtf8(s);
 }
 
+test utf8DisplayWidth {
+    try std.testing.expectEqual(@as(usize, 6), utf8DisplayWidth("a你好e\u{0301}"));
+}
+
 fn visibleWidthUtf8(s: []const u8) usize {
     var i: usize = 0;
     var visible: usize = 0;
@@ -385,6 +389,15 @@ test "wrap ansi paragraph" {
     defer allocator.free(wrapped);
 
     try std.testing.expectEqualStrings("\x1b[31malpha beta\n  gamma\x1b[0m", wrapped);
+}
+
+test "wrap ansi with multiple sgr sequences" {
+    const allocator = std.testing.allocator;
+    const src = "\x1b[31mred\x1b[0m \x1b[34mblue\x1b[0m green";
+    const wrapped = try wrapAnsi(src, 8, 2, allocator);
+    defer allocator.free(wrapped);
+
+    try std.testing.expectEqualStrings("\x1b[31mred\x1b[0m \x1b[34mblue\x1b[0m\n  green", wrapped);
 }
 
 test "wrap utf8 cjk display width" {

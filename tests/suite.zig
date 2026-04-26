@@ -3,6 +3,12 @@ const allocator = std.testing.allocator;
 
 const carnaval = @import("carnaval");
 
+comptime {
+    _ = @import("style_rendering.zig");
+    _ = @import("table_rendering.zig");
+    _ = @import("wrapping.zig");
+}
+
 test "wrap with indent" {
     const wrapped = try carnaval.wrap("A small sentence for wrapping", 12, 4, allocator);
 

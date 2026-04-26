@@ -146,6 +146,16 @@ fn hasFormatting(self: Style) bool {
         self.strikethrough;
 }
 
+test Style {
+    const allocator = std.testing.allocator;
+    const style = Style.init().underlined().fg(.{ .ansi16 = .cyan });
+
+    const rendered = try style.renderAllocWithProfile("docs", allocator, .ansi16);
+    defer allocator.free(rendered);
+
+    try std.testing.expectEqualStrings("\x1b[4m\x1b[36mdocs\x1b[0m", rendered);
+}
+
 test "render with reset" {
     const allocator = std.testing.allocator;
     const style = Style.init().fg(.{ .ansi16 = .red }).bolded();
@@ -162,4 +172,59 @@ test "render plain when profile none" {
     defer allocator.free(rendered);
 
     try std.testing.expectEqualStrings("hi", rendered);
+}
+
+test "render all attributes foreground and background in stable order" {
+    const allocator = std.testing.allocator;
+    const style = Style.init()
+        .bolded()
+        .dimmed()
+        .italicized()
+        .underlined()
+        .striked()
+        .fg(.{ .ansi16 = .bright_white })
+        .bg(.{ .ansi16 = .black });
+
+    const rendered = try style.renderAllocWithProfile("all", allocator, .ansi16);
+    defer allocator.free(rendered);
+
+    try std.testing.expectEqualStrings(
+        "\x1b[1m\x1b[2m\x1b[3m\x1b[4m\x1b[9m\x1b[97m\x1b[40mall\x1b[0m",
+        rendered,
+    );
+}
+
+test "render ansi256 and true color escape codes" {
+    const allocator = std.testing.allocator;
+    const ansi_style = Style.init().fg(.{ .ansi256 = 42 }).bg(.{ .ansi256 = 99 });
+    const ansi_rendered = try ansi_style.renderAllocWithProfile("x", allocator, .ansi256);
+    defer allocator.free(ansi_rendered);
+
+    try std.testing.expectEqualStrings("\x1b[38;5;42m\x1b[48;5;99mx\x1b[0m", ansi_rendered);
+
+    const true_color_style = Style.init().fg(Color.rgb(1, 2, 3)).bg(Color.rgb(4, 5, 6));
+    const true_color_rendered = try true_color_style.renderAllocWithProfile("x", allocator, .true_color);
+    defer allocator.free(true_color_rendered);
+
+    try std.testing.expectEqualStrings("\x1b[38;2;1;2;3m\x1b[48;2;4;5;6mx\x1b[0m", true_color_rendered);
+}
+
+test "render color none writes text without reset" {
+    const allocator = std.testing.allocator;
+    const style = Style.init().fg(.none).bg(.none);
+
+    const rendered = try style.renderAllocWithProfile("plain", allocator, .ansi16);
+    defer allocator.free(rendered);
+
+    try std.testing.expectEqualStrings("plain", rendered);
+}
+
+test "render fixed writer exact output" {
+    const style = Style.init().bolded().fg(.{ .ansi16 = .green });
+    var buf: [64]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf);
+
+    try style.renderWithProfile("ok", &writer, .ansi16);
+
+    try std.testing.expectEqualStrings("\x1b[1m\x1b[32mok\x1b[0m", writer.buffered());
 }

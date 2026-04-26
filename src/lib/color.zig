@@ -192,6 +192,12 @@ fn ansi256ToAnsi16(v: u8) Ansi16 {
     return rgbToAnsi16(ansi256ToRgb(v));
 }
 
+test Color {
+    const c = Color.rgb(12, 34, 56);
+
+    try std.testing.expectEqualDeep(Color{ .true_color = .{ .r = 12, .g = 34, .b = 56 } }, c);
+}
+
 test "downsample true color to ansi256" {
     const c = Color.rgb(255, 0, 0).downsample(.ansi256);
     try std.testing.expect(c == .ansi256);
@@ -210,4 +216,44 @@ test "downsample true color red maps to ansi16 bright_red" {
 test "downsample ansi256 196 maps to ansi16 bright_red" {
     const c = (Color{ .ansi256 = 196 }).downsample(.ansi16);
     try std.testing.expectEqualDeep(Color{ .ansi16 = .bright_red }, c);
+}
+
+test "emit ansi16 foreground and background escape codes" {
+    var buf: [32]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf);
+
+    try std.testing.expect(try (Color{ .ansi16 = .bright_blue }).emitFg(&writer, .ansi16));
+    try std.testing.expect(try (Color{ .ansi16 = .bright_yellow }).emitBg(&writer, .ansi16));
+
+    try std.testing.expectEqualStrings("\x1b[94m\x1b[103m", writer.buffered());
+}
+
+test "emit ansi256 foreground and background escape codes" {
+    var buf: [48]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf);
+
+    try std.testing.expect(try (Color{ .ansi256 = 42 }).emitFg(&writer, .ansi256));
+    try std.testing.expect(try (Color{ .ansi256 = 99 }).emitBg(&writer, .ansi256));
+
+    try std.testing.expectEqualStrings("\x1b[38;5;42m\x1b[48;5;99m", writer.buffered());
+}
+
+test "emit true color foreground and background escape codes" {
+    var buf: [64]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf);
+
+    try std.testing.expect(try Color.rgb(1, 2, 3).emitFg(&writer, .true_color));
+    try std.testing.expect(try Color.rgb(4, 5, 6).emitBg(&writer, .true_color));
+
+    try std.testing.expectEqualStrings("\x1b[38;2;1;2;3m\x1b[48;2;4;5;6m", writer.buffered());
+}
+
+test "emit none color writes nothing and reports false" {
+    var buf: [8]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf);
+    const none: Color = .none;
+
+    try std.testing.expect(!try none.emitFg(&writer, .ansi16));
+    try std.testing.expect(!try none.emitBg(&writer, .ansi16));
+    try std.testing.expectEqualStrings("", writer.buffered());
 }

@@ -78,6 +78,30 @@ pub fn renderAsciiStyled(
     return renderTableStyled(allocator, headers, rows, writer, color_profile, .ascii);
 }
 
+test renderAscii {
+    const allocator = std.testing.allocator;
+    var buf: [128]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf);
+
+    try renderAscii(
+        allocator,
+        &.{"Name"},
+        &.{
+            &.{"api"},
+        },
+        &writer,
+    );
+
+    try std.testing.expectEqualStrings(
+        "+------+\n" ++
+            "| Name |\n" ++
+            "+------+\n" ++
+            "| api  |\n" ++
+            "+------+\n",
+        writer.buffered(),
+    );
+}
+
 fn computeWidths(headers: []const []const u8, rows: []const []const []const u8, allocator: std.mem.Allocator) ![]usize {
     const w = try allocator.alloc(usize, headers.len);
     for (headers, 0..) |h, i| {
@@ -384,4 +408,52 @@ test "unicode table structure" {
     try std.testing.expect(std.mem.indexOf(u8, s, "┬") != null);
     try std.testing.expect(std.mem.indexOf(u8, s, "│") != null);
     try std.testing.expect(std.mem.endsWith(u8, std.mem.trimEnd(u8, s, "\n"), "┘"));
+}
+
+test "ascii table styled header exact output" {
+    const allocator = std.testing.allocator;
+    var buf: [256]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf);
+
+    try renderAsciiStyled(
+        allocator,
+        &.{ "Name", "Status" },
+        &.{
+            &.{ "api", "ok" },
+        },
+        &writer,
+        .ansi16,
+    );
+
+    try std.testing.expectEqualStrings(
+        "+------+--------+\n" ++
+            "| \x1b[1mName\x1b[0m | \x1b[1mStatus\x1b[0m |\n" ++
+            "+------+--------+\n" ++
+            "| api  | ok     |\n" ++
+            "+------+--------+\n",
+        writer.buffered(),
+    );
+}
+
+test "markdown table exact output" {
+    const allocator = std.testing.allocator;
+    var buf: [256]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf);
+
+    try renderTable(
+        allocator,
+        &.{ "Name", "Status" },
+        &.{
+            &.{ "api", "ok" },
+        },
+        &writer,
+        .markdown,
+    );
+
+    try std.testing.expectEqualStrings(
+        "| Name | Status |\n" ++
+            "|------|--------|\n" ++
+            "| api  | ok     |\n",
+        writer.buffered(),
+    );
 }
