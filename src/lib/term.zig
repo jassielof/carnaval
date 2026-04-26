@@ -34,10 +34,10 @@ pub fn prepareWindowsConsoleIfNeeded(handle: std.Io.File.Handle) void {
 }
 
 pub fn terminalWidth() usize {
-    return terminalWidthForHandle(std.fs.File.stdout().handle);
+    return terminalWidthForHandle(std.Io.File.stdout().handle);
 }
 
-pub fn terminalWidthForHandle(handle: std.fs.File.Handle) usize {
+pub fn terminalWidthForHandle(handle: std.Io.File.Handle) usize {
     prepareWindowsConsoleIfNeeded(handle);
 
     if (ttyWidth(handle)) |w| {
@@ -51,12 +51,12 @@ pub fn terminalWidthForHandle(handle: std.fs.File.Handle) usize {
     return 80;
 }
 
-fn ttyWidth(handle: std.fs.File.Handle) ?usize {
+fn ttyWidth(handle: std.Io.File.Handle) ?usize {
     if (builtin.os.tag == .windows) return windowsTtyWidth(handle);
     return posixTtyWidth(handle);
 }
 
-fn posixTtyWidth(handle: std.fs.File.Handle) ?usize {
+fn posixTtyWidth(handle: std.Io.File.Handle) ?usize {
     if (!std.posix.isatty(handle)) return null;
 
     var ws: std.posix.winsize = undefined;
@@ -66,7 +66,7 @@ fn posixTtyWidth(handle: std.fs.File.Handle) ?usize {
     return ws.col;
 }
 
-fn windowsTtyWidth(handle: std.fs.File.Handle) ?usize {
+fn windowsTtyWidth(handle: std.Io.File.Handle) ?usize {
     var csbi: std.os.windows.CONSOLE_SCREEN_BUFFER_INFO = undefined;
     if (std.os.windows.kernel32.GetConsoleScreenBufferInfo(handle, &csbi) == 0) return null;
 
