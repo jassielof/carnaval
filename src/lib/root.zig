@@ -10,6 +10,14 @@ pub const renderTable = table.renderTable;
 pub const renderTableStyled = table.renderTableStyled;
 pub const renderAsciiTable = table.renderAscii;
 pub const renderAsciiTableStyled = table.renderAsciiStyled;
+pub const list = @import("components/list.zig");
+pub const ListStyle = list.ListStyle;
+pub const ListOptions = list.ListOptions;
+pub const ListItem = list.ListItem;
+pub const renderList = list.renderList;
+pub const renderListItems = list.renderListItems;
+pub const renderListAlloc = list.renderListAlloc;
+pub const renderListItemsAlloc = list.renderListItemsAlloc;
 pub const escape = @import("escape.zig");
 pub const profile = @import("profile.zig");
 pub const ColorProfile = profile.ColorProfile;
@@ -24,6 +32,7 @@ pub const isWindowsConsoleHandle = term.isWindowsConsoleHandle;
 pub const wrap = term.wrap;
 pub const wrapAnsi = term.wrapAnsi;
 pub const utf8DisplayWidth = term.utf8DisplayWidth;
+pub const ansiDisplayWidth = term.ansiDisplayWidth;
 
 comptime {
     _ = escape;
@@ -32,6 +41,7 @@ comptime {
     _ = Style;
     _ = term;
     _ = table;
+    _ = list;
 }
 
 test "public API basic render" {
@@ -75,4 +85,11 @@ test renderAsciiTable {
             "+------+\n",
         writer.buffered(),
     );
+}
+
+test renderList {
+    const out = try renderListAlloc(std.testing.allocator, &.{ "alpha", "beta" }, .{ .style = .dash });
+    defer std.testing.allocator.free(out);
+
+    try std.testing.expectEqualStrings("- alpha\n- beta", out);
 }

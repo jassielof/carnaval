@@ -105,11 +105,11 @@ test renderAscii {
 fn computeWidths(headers: []const []const u8, rows: []const []const []const u8, allocator: std.mem.Allocator) ![]usize {
     const w = try allocator.alloc(usize, headers.len);
     for (headers, 0..) |h, i| {
-        w[i] = term.utf8DisplayWidth(h);
+        w[i] = term.ansiDisplayWidth(h);
     }
     for (rows) |row| {
         for (row, 0..) |cell, i| {
-            const cw = term.utf8DisplayWidth(cell);
+            const cw = term.ansiDisplayWidth(cell);
             if (cw > w[i]) w[i] = cw;
         }
     }
@@ -133,18 +133,18 @@ fn writePaddedHeaderCell(
     const header_style = Style.init().bolded();
     if (color_profile == .none) {
         try writer.writeAll(header);
-        const dw = term.utf8DisplayWidth(header);
+        const dw = term.ansiDisplayWidth(header);
         if (dw < col_width) try writeRepeat(writer, ' ', col_width - dw);
     } else {
         try header_style.renderWithProfile(header, writer, color_profile);
-        const dw = term.utf8DisplayWidth(header);
+        const dw = term.ansiDisplayWidth(header);
         if (dw < col_width) try writeRepeat(writer, ' ', col_width - dw);
     }
 }
 
 fn writePaddedBodyCell(writer: *std.Io.Writer, cell: []const u8, col_width: usize) !void {
     try writer.writeAll(cell);
-    const dw = term.utf8DisplayWidth(cell);
+    const dw = term.ansiDisplayWidth(cell);
     if (dw < col_width) try writeRepeat(writer, ' ', col_width - dw);
 }
 
@@ -336,19 +336,9 @@ test "ascii table plain" {
 test "ascii table utf8 width padding" {
     const allocator = std.testing.allocator;
     var buf: [256]u8 = undefined;
-    // var fbs = std.io.fixedBufferStream(&buf);
-    // const w = fbs.writer();
 
     var fbw = std.Io.Writer.fixed(&buf);
 
-    // try renderAscii(
-    //     allocator,
-    //     &.{ "名", "x" },
-    //     &.{
-    //         &.{ "你好", "y" },
-    //     },
-    //     w,
-    // );
     try renderAscii(
         allocator,
         &.{ "名", "x" },
@@ -358,16 +348,39 @@ test "ascii table utf8 width padding" {
         &fbw,
     );
 
-    // try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "| 你好") != null);
     try std.testing.expect(std.mem.indexOf(u8, fbw.buffered(), "| 你好") != null);
+}
+
+test "ascii table ansi cell width padding" {
+    const allocator = std.testing.allocator;
+    var buf: [256]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf);
+
+    try renderAscii(
+        allocator,
+        &.{ "Name", "State" },
+        &.{
+            &.{ "\x1b[31mapi\x1b[0m", "ok" },
+            &.{ "worker", "warn" },
+        },
+        &writer,
+    );
+
+    try std.testing.expectEqualStrings(
+        "+--------+-------+\n" ++
+            "| Name   | State |\n" ++
+            "+--------+-------+\n" ++
+            "| \x1b[31mapi\x1b[0m    | ok    |\n" ++
+            "| worker | warn  |\n" ++
+            "+--------+-------+\n",
+        writer.buffered(),
+    );
 }
 
 test "markdown table" {
     const allocator = std.testing.allocator;
     var buf: [512]u8 = undefined;
-    // var fbs = std.io.fixedBufferStream(&buf);
     var fbw = std.Io.Writer.fixed(&buf);
-    // const w = fbs.writer();
 
     try renderTable(
         allocator,
@@ -379,7 +392,6 @@ test "markdown table" {
         .markdown,
     );
 
-    // const s = fbs.getWritten();
     const s = fbw.buffered();
     try std.testing.expect(std.mem.startsWith(u8, s, "| ALIAS "));
     try std.testing.expect(std.mem.indexOf(u8, s, "|---") != null);
@@ -389,8 +401,6 @@ test "markdown table" {
 test "unicode table structure" {
     const allocator = std.testing.allocator;
     var buf: [512]u8 = undefined;
-    // var fbs = std.io.fixedBufferStream(&buf);
-    // const w = fbs.writer();
     var fbw = std.Io.Writer.fixed(&buf);
 
     try renderTable(

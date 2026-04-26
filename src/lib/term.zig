@@ -199,7 +199,7 @@ fn wrapSingleLineAnsi(out: *std.ArrayList(u8), line: []const u8, width: usize, i
     var line_visible: usize = 0;
 
     while (word_it.next()) |word| {
-        const word_visible = visibleWidth(word);
+        const word_visible = ansiDisplayWidth(word);
 
         if (line_visible == 0) {
             line_visible = try appendWordChunksAnsi(out, word, width, indent, false, allocator);
@@ -220,9 +220,9 @@ fn wrapSingleLineAnsi(out: *std.ArrayList(u8), line: []const u8, width: usize, i
 }
 
 fn appendWordChunksAnsi(out: *std.ArrayList(u8), word: []const u8, width: usize, indent: usize, continuation: bool, allocator: std.mem.Allocator) !usize {
-    if (visibleWidth(word) <= width) {
+    if (ansiDisplayWidth(word) <= width) {
         try out.appendSlice(allocator, word);
-        return visibleWidth(word);
+        return ansiDisplayWidth(word);
     }
 
     var i: usize = 0;
@@ -268,7 +268,8 @@ fn appendWordChunksAnsi(out: *std.ArrayList(u8), word: []const u8, width: usize,
     return trailing_visible;
 }
 
-fn visibleWidth(s: []const u8) usize {
+/// Terminal display width for UTF-8 text while ignoring ANSI CSI escape sequences.
+pub fn ansiDisplayWidth(s: []const u8) usize {
     var i: usize = 0;
     var visible: usize = 0;
     while (i < s.len) {
@@ -292,6 +293,10 @@ pub fn utf8DisplayWidth(s: []const u8) usize {
 
 test utf8DisplayWidth {
     try std.testing.expectEqual(@as(usize, 6), utf8DisplayWidth("a你好e\u{0301}"));
+}
+
+test ansiDisplayWidth {
+    try std.testing.expectEqual(@as(usize, 5), ansiDisplayWidth("\x1b[31mred\x1b[0m好"));
 }
 
 fn visibleWidthUtf8(s: []const u8) usize {

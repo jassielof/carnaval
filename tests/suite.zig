@@ -4,6 +4,7 @@ const allocator = std.testing.allocator;
 const carnaval = @import("carnaval");
 
 comptime {
+    _ = @import("list_rendering.zig");
     _ = @import("style_rendering.zig");
     _ = @import("table_rendering.zig");
     _ = @import("wrapping.zig");
