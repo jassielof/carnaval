@@ -1,13 +1,15 @@
 const std = @import("std");
 const allocator = std.testing.allocator;
+const refAllDecls = std.testing.refAllDecls;
 
 const carnaval = @import("carnaval");
 
 comptime {
-    _ = @import("list_rendering.zig");
-    _ = @import("style_rendering.zig");
-    _ = @import("table_rendering.zig");
-    _ = @import("wrapping.zig");
+    refAllDecls(@This());
+    refAllDecls(@import("list_rendering.zig"));
+    refAllDecls(@import("style_rendering.zig"));
+    refAllDecls(@import("table_rendering.zig"));
+    refAllDecls(@import("wrapping.zig"));
 }
 
 test "wrap with indent" {

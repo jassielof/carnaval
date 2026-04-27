@@ -4,12 +4,6 @@ pub const color = @import("color.zig");
 pub const Ansi16 = color.Ansi16;
 pub const Rgb = color.Rgb;
 pub const Color = color.Color;
-pub const table = @import("components/table.zig");
-pub const TableStyle = table.TableStyle;
-pub const renderTable = table.renderTable;
-pub const renderTableStyled = table.renderTableStyled;
-pub const renderAsciiTable = table.renderAscii;
-pub const renderAsciiTableStyled = table.renderAsciiStyled;
 pub const list = @import("components/list.zig");
 pub const ListStyle = list.ListStyle;
 pub const ListOptions = list.ListOptions;
@@ -18,6 +12,12 @@ pub const renderList = list.renderList;
 pub const renderListItems = list.renderListItems;
 pub const renderListAlloc = list.renderListAlloc;
 pub const renderListItemsAlloc = list.renderListItemsAlloc;
+pub const table = @import("components/table.zig");
+pub const TableStyle = table.TableStyle;
+pub const renderTable = table.renderTable;
+pub const renderTableStyled = table.renderTableStyled;
+pub const renderAsciiTable = table.renderAscii;
+pub const renderAsciiTableStyled = table.renderAsciiStyled;
 pub const escape = @import("escape.zig");
 pub const profile = @import("profile.zig");
 pub const ColorProfile = profile.ColorProfile;
@@ -35,13 +35,7 @@ pub const utf8DisplayWidth = term.utf8DisplayWidth;
 pub const ansiDisplayWidth = term.ansiDisplayWidth;
 
 comptime {
-    _ = escape;
-    _ = profile;
-    _ = color;
-    _ = Style;
-    _ = term;
-    _ = table;
-    _ = list;
+    std.testing.refAllDecls(@This());
 }
 
 test "public API basic render" {
