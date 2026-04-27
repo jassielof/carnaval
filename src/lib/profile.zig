@@ -47,9 +47,16 @@ fn hasEnv(name: []const u8) bool {
 }
 
 fn envValue(name: []const u8) ?[]u8 {
-    return std.process.getEnvVarOwned(std.heap.page_allocator, name) catch |err| switch (err) {
-        error.EnvironmentVariableNotFound => null,
+    return std.process.Environ.getAlloc(globalEnviron(), std.heap.page_allocator, name) catch |err| switch (err) {
+        error.EnvironmentVariableMissing => null,
         else => null,
+    };
+}
+
+fn globalEnviron() std.process.Environ {
+    return switch (builtin.os.tag) {
+        .windows, .wasi, .emscripten, .freestanding, .other => .{ .block = .global },
+        else => .empty,
     };
 }
 

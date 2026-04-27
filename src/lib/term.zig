@@ -5,6 +5,22 @@ const Utf8Unit = @import("Utf8Unit.zig");
 
 extern "kernel32" fn SetConsoleOutputCP(code_page: std.os.windows.UINT) callconv(.winapi) std.os.windows.BOOL;
 extern "kernel32" fn GetConsoleMode(handle: std.os.windows.HANDLE, mode: *std.os.windows.DWORD) callconv(.winapi) std.os.windows.BOOL;
+extern "kernel32" fn GetConsoleScreenBufferInfo(handle: std.os.windows.HANDLE, info: *ConsoleScreenBufferInfo) callconv(.winapi) std.os.windows.BOOL;
+
+const SmallRect = extern struct {
+    Left: std.os.windows.SHORT,
+    Top: std.os.windows.SHORT,
+    Right: std.os.windows.SHORT,
+    Bottom: std.os.windows.SHORT,
+};
+
+const ConsoleScreenBufferInfo = extern struct {
+    dwSize: std.os.windows.COORD,
+    dwCursorPosition: std.os.windows.COORD,
+    wAttributes: std.os.windows.WORD,
+    srWindow: SmallRect,
+    dwMaximumWindowSize: std.os.windows.COORD,
+};
 
 var windows_console_utf8_mutex: std.atomic.Mutex = .unlocked;
 var windows_console_utf8_done: bool = false;
@@ -67,8 +83,8 @@ fn posixTtyWidth(handle: std.Io.File.Handle) ?usize {
 }
 
 fn windowsTtyWidth(handle: std.Io.File.Handle) ?usize {
-    var csbi: std.os.windows.CONSOLE_SCREEN_BUFFER_INFO = undefined;
-    if (std.os.windows.kernel32.GetConsoleScreenBufferInfo(handle, &csbi) == 0) return null;
+    var csbi: ConsoleScreenBufferInfo = undefined;
+    if (!GetConsoleScreenBufferInfo(handle, &csbi).toBool()) return null;
 
     const width: i32 = csbi.srWindow.Right - csbi.srWindow.Left + 1;
     if (width <= 0) return null;
@@ -76,13 +92,20 @@ fn windowsTtyWidth(handle: std.Io.File.Handle) ?usize {
 }
 
 fn envWidth(name: []const u8) ?usize {
-    const value = std.process.getEnvVarOwned(std.heap.page_allocator, name) catch |err| switch (err) {
-        error.EnvironmentVariableNotFound => return null,
+    const value = std.process.Environ.getAlloc(globalEnviron(), std.heap.page_allocator, name) catch |err| switch (err) {
+        error.EnvironmentVariableMissing => return null,
         else => return null,
     };
     defer std.heap.page_allocator.free(value);
 
     return std.fmt.parseInt(usize, value, 10) catch null;
+}
+
+fn globalEnviron() std.process.Environ {
+    return switch (builtin.os.tag) {
+        .windows, .wasi, .emscripten, .freestanding, .other => .{ .block = .global },
+        else => .empty,
+    };
 }
 
 pub fn wrap(text: []const u8, width: usize, indent: usize, allocator: std.mem.Allocator) ![]u8 {
