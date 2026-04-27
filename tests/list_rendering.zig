@@ -1,7 +1,7 @@
 const std = @import("std");
-const carnaval = @import("carnaval");
-
 const allocator = std.testing.allocator;
+
+const carnaval = @import("carnaval");
 
 test "list renders exact bullet output" {
     const rendered = try carnaval.renderListAlloc(allocator, &.{ "Glitter", "Masks", "Drums" }, .{});
