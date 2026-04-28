@@ -17,7 +17,7 @@ pub fn colorProfileForHandle(handle: std.Io.File.Handle) ColorProfile {
     term.prepareWindowsConsoleIfNeeded(handle);
 
     if (hasEnv("NO_COLOR")) return .none;
-    if (!isTtyHandle(handle)) return .none;
+    if (!term.isTtyHandle(handle)) return .none;
 
     if (envValue("TERM")) |v| {
         defer std.heap.page_allocator.free(v);
@@ -60,7 +60,3 @@ fn globalEnviron() std.process.Environ {
     };
 }
 
-fn isTtyHandle(handle: std.Io.File.Handle) bool {
-    if (builtin.os.tag == .windows) return term.isWindowsConsoleHandle(handle);
-    return std.posix.isatty(handle);
-}

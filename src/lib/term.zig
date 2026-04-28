@@ -67,19 +67,27 @@ pub fn terminalWidthForHandle(handle: std.Io.File.Handle) usize {
     return 80;
 }
 
+pub fn isTtyHandle(handle: std.Io.File.Handle) bool {
+    if (builtin.os.tag == .windows) return isWindowsConsoleHandle(handle);
+    return posixTtySize(handle) != null;
+}
+
 fn ttyWidth(handle: std.Io.File.Handle) ?usize {
     if (builtin.os.tag == .windows) return windowsTtyWidth(handle);
     return posixTtyWidth(handle);
 }
 
 fn posixTtyWidth(handle: std.Io.File.Handle) ?usize {
-    if (!std.posix.isatty(handle)) return null;
+    const ws = posixTtySize(handle) orelse return null;
+    if (ws.col == 0) return null;
+    return ws.col;
+}
 
+fn posixTtySize(handle: std.Io.File.Handle) ?std.posix.winsize {
     var ws: std.posix.winsize = undefined;
     const rc = std.posix.system.ioctl(handle, std.posix.T.IOCGWINSZ, @intFromPtr(&ws));
     if (std.posix.errno(rc) != .SUCCESS) return null;
-    if (ws.col == 0) return null;
-    return ws.col;
+    return ws;
 }
 
 fn windowsTtyWidth(handle: std.Io.File.Handle) ?usize {
