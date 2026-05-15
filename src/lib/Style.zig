@@ -14,6 +14,7 @@ italic: bool = false,
 underline: bool = false,
 dim: bool = false,
 strikethrough: bool = false,
+// TODO: Add documentation to public symbols (functions, etc.)
 
 pub fn init() Style {
     return .{};

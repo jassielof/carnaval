@@ -1,6 +1,4 @@
 //! RGB Color struct specified by its red, green and blue components.
-//!
-//! Each one in the range of 0-255.
 
 /// The red component.
 r: u8,
