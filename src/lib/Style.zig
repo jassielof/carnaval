@@ -1,3 +1,8 @@
+//! Immutable ANSI/SGR styling for terminal strings (colors and text attributes).
+//!
+//! Builder methods return a new `Style`; nothing is mutated in place. When rendering with
+//! `ColorProfile.none`, or when no colors or attributes are set, output is plain text (no escapes).
+
 const std = @import("std");
 
 const Color = @import("color.zig").Color;
@@ -7,85 +12,107 @@ const profile = @import("profile.zig");
 
 const Style = @This();
 
+/// Foreground color; `null` uses the terminal default.
 fg_color: ?Color = null,
+/// Background color; `null` uses the terminal default.
 bg_color: ?Color = null,
+/// When true, emit bold (SGR 1) until reset.
 bold: bool = false,
+/// When true, emit italic (SGR 3) until reset.
 italic: bool = false,
+/// When true, emit underline (SGR 4) until reset.
 underline: bool = false,
+/// When true, emit dim/faint (SGR 2) until reset.
 dim: bool = false,
+/// When true, emit strikethrough (SGR 9) until reset.
 strikethrough: bool = false,
-// TODO: Add documentation to public symbols (functions, etc.)
 
+/// Returns a style with no colors or attributes.
 pub fn init() Style {
     return .{};
 }
 
+/// Sets the foreground color (replaces any previous foreground).
 pub fn fg(self: Style, c: Color) Style {
     var out = self;
     out.fg_color = c;
     return out;
 }
 
+/// Sets the background color (replaces any previous background).
 pub fn bg(self: Style, c: Color) Style {
     var out = self;
     out.bg_color = c;
     return out;
 }
 
+/// Enables or disables bold (SGR 1).
 pub fn withBold(self: Style, enabled: bool) Style {
     var out = self;
     out.bold = enabled;
     return out;
 }
 
+/// Enables or disables italic (SGR 3).
 pub fn withItalic(self: Style, enabled: bool) Style {
     var out = self;
     out.italic = enabled;
     return out;
 }
 
+/// Enables or disables underline (SGR 4).
 pub fn withUnderline(self: Style, enabled: bool) Style {
     var out = self;
     out.underline = enabled;
     return out;
 }
 
+/// Enables or disables dim/faint (SGR 2).
 pub fn withDim(self: Style, enabled: bool) Style {
     var out = self;
     out.dim = enabled;
     return out;
 }
 
+/// Enables or disables strikethrough (SGR 9).
 pub fn withStrikethrough(self: Style, enabled: bool) Style {
     var out = self;
     out.strikethrough = enabled;
     return out;
 }
 
+/// Shorthand for `withBold(true)`.
 pub fn bolded(self: Style) Style {
     return self.withBold(true);
 }
 
+/// Shorthand for `withItalic(true)`.
 pub fn italicized(self: Style) Style {
     return self.withItalic(true);
 }
 
+/// Shorthand for `withUnderline(true)`.
 pub fn underlined(self: Style) Style {
     return self.withUnderline(true);
 }
 
+/// Shorthand for `withDim(true)`.
 pub fn dimmed(self: Style) Style {
     return self.withDim(true);
 }
 
+/// Shorthand for `withStrikethrough(true)`.
 pub fn striked(self: Style) Style {
     return self.withStrikethrough(true);
 }
 
+/// Writes `text` using `colorProfile()` from `profile.zig` (typically stdout capability).
 pub fn render(self: Style, text: []const u8, writer: *std.Io.Writer) !void {
     try self.renderWithProfile(text, writer, profile.colorProfile());
 }
 
+/// Writes `text` with ANSI prefixes and a trailing reset when `color_profile` is not `.none`
+/// and at least one attribute or color is active.
 pub fn renderWithProfile(self: Style, text: []const u8, writer: *std.Io.Writer, color_profile: ColorProfile) !void {
     if (color_profile == .none or !self.hasFormatting()) {
         try writer.writeAll(text);
@@ -125,10 +152,12 @@ pub fn renderWithProfile(self: Style, text: []const u8, writer: *std.Io.Writer, 
     if (wrote_any) try writer.writeAll(escape.reset);
 }
 
+/// Like `render`, but returns an owned buffer allocated with `allocator`.
 pub fn renderAlloc(self: Style, text: []const u8, allocator: std.mem.Allocator) ![]u8 {
     return self.renderAllocWithProfile(text, allocator, profile.colorProfile());
 }
 
+/// Like `renderWithProfile`, but returns an owned buffer allocated with `allocator`.
 pub fn renderAllocWithProfile(self: Style, text: []const u8, allocator: std.mem.Allocator, color_profile: ColorProfile) ![]u8 {
     var writer = std.Io.Writer.Allocating.init(allocator);
     defer writer.deinit();
