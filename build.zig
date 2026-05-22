@@ -53,14 +53,14 @@ pub fn build(b: *std.Build) void {
     const run_unit_tests = b.addRunArtifact(unit_tests);
     tests_step.dependOn(&run_unit_tests.step);
 
-    const lint_step = b.step("check", "Run code quality checks");
+    const check_step = b.step("check", "Run code quality checks");
 
     const lizzy_step = lizzy.addStepWithBuildOptions(b, .{});
-    lint_step.dependOn(lizzy_step);
+    check_step.dependOn(lizzy_step);
 
     const fmt = b.addFmt(.{
         .check = true,
         .paths = &.{"src/"},
     });
-    lint_step.dependOn(&fmt.step);
+    check_step.dependOn(&fmt.step);
 }
