@@ -39,7 +39,7 @@ pub const Color = union(enum) {
         };
     }
 
-    pub fn emitFg(self: Color, writer: anytype, profile: ColorProfile) !bool {
+    pub fn emitFg(self: Color, writer: *std.Io.Writer, profile: ColorProfile) !bool {
         if (profile == .none) return false;
         return switch (self.downsample(profile)) {
             .none => false,
@@ -66,7 +66,7 @@ pub const Color = union(enum) {
         };
     }
 
-    pub fn emitBg(self: Color, writer: anytype, profile: ColorProfile) !bool {
+    pub fn emitBg(self: Color, writer: *std.Io.Writer, profile: ColorProfile) !bool {
         if (profile == .none) return false;
         return switch (self.downsample(profile)) {
             .none => false,
