@@ -9,7 +9,6 @@ Terminal styling for Zig.
 == Acknowledgments and prior art
 
 * https://charm.land/libs/[Charmbracelet works (specially Lip Gloss)]
-* https://github.com/xyaman/mibu[Xiaman’s Mibu library for low-level
-terminal manipulation]
+* https://github.com/xyaman/mibu[Xiaman’s Mibu library for low-level terminal manipulation]
 * https://github.com/adia-dev/chroma-zig[Abdoulaye Dia’s Chroma library]
 * https://github.com/Textualize/rich[Python’s Rich library]
