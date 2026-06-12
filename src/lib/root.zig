@@ -29,8 +29,11 @@ pub const terminalWidth = term.terminalWidth;
 pub const terminalWidthForHandle = term.terminalWidthForHandle;
 pub const prepareWindowsConsoleIfNeeded = term.prepareWindowsConsoleIfNeeded;
 pub const isWindowsConsoleHandle = term.isWindowsConsoleHandle;
+pub const WrapOptions = term.WrapOptions;
 pub const wrap = term.wrap;
+pub const wrapWithOptions = term.wrapWithOptions;
 pub const wrapAnsi = term.wrapAnsi;
+pub const wrapAnsiWithOptions = term.wrapAnsiWithOptions;
 pub const utf8DisplayWidth = term.utf8DisplayWidth;
 pub const ansiDisplayWidth = term.ansiDisplayWidth;
 

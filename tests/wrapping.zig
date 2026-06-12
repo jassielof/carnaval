@@ -31,3 +31,14 @@ test "wrap chunks a long utf8 word by display width" {
 test "utf8DisplayWidth counts wide and combining codepoints" {
     try std.testing.expectEqual(@as(usize, 6), carnaval.utf8DisplayWidth("a你好e\u{0301}"));
 }
+
+test "wrapWithOptions prose defaults preserve urls and paths" {
+    const src = "Read https://ziglang.org and edit ./build.zig next.";
+    const wrapped = try carnaval.wrapWithOptions(src, 22, carnaval.WrapOptions.prose, allocator);
+    defer allocator.free(wrapped);
+
+    try std.testing.expect(std.mem.indexOf(u8, wrapped, "https://ziglang.org") != null);
+    try std.testing.expect(std.mem.indexOf(u8, wrapped, "./build.zig") != null);
+    try std.testing.expect(std.mem.indexOf(u8, wrapped, "https://zig\n") == null);
+    try std.testing.expect(std.mem.indexOf(u8, wrapped, "./build.\n") == null);
+}

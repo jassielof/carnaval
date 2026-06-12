@@ -116,7 +116,26 @@ fn globalEnviron() std.process.Environ {
     };
 }
 
+/// Controls word-wrapping behavior for terminal prose.
+pub const WrapOptions = struct {
+    /// Spaces inserted before continuation lines.
+    indent: usize = 0,
+    /// Keep `http://`, `https://`, and similar spans on one line.
+    preserve_urls: bool = true,
+    /// Keep file paths (`./foo`, `/abs`, `C:\foo`, `~/x`) on one line.
+    preserve_paths: bool = true,
+    /// Keep backtick-quoted spans on one line.
+    preserve_backticks: bool = true,
+
+    /// Defaults tuned for readable help and documentation prose.
+    pub const prose: WrapOptions = .{};
+};
+
 pub fn wrap(text: []const u8, width: usize, indent: usize, allocator: std.mem.Allocator) ![]u8 {
+    return wrapWithOptions(text, width, .{ .indent = indent }, allocator);
+}
+
+pub fn wrapWithOptions(text: []const u8, width: usize, options: WrapOptions, allocator: std.mem.Allocator) ![]u8 {
     if (width == 0) return allocator.dupe(u8, text);
 
     var out = try std.ArrayList(u8).initCapacity(allocator, 0);
@@ -128,13 +147,17 @@ pub fn wrap(text: []const u8, width: usize, indent: usize, allocator: std.mem.Al
         if (!first_line) try out.append(allocator, '\n');
         first_line = false;
 
-        try wrapSingleLine(&out, line, width, indent, allocator);
+        try wrapSingleLine(&out, line, width, options, allocator);
     }
 
     return out.toOwnedSlice(allocator);
 }
 
 pub fn wrapAnsi(text: []const u8, width: usize, indent: usize, allocator: std.mem.Allocator) ![]u8 {
+    return wrapAnsiWithOptions(text, width, .{ .indent = indent }, allocator);
+}
+
+pub fn wrapAnsiWithOptions(text: []const u8, width: usize, options: WrapOptions, allocator: std.mem.Allocator) ![]u8 {
     if (width == 0) return allocator.dupe(u8, text);
 
     var out = try std.ArrayList(u8).initCapacity(allocator, 0);
@@ -146,36 +169,62 @@ pub fn wrapAnsi(text: []const u8, width: usize, indent: usize, allocator: std.me
         if (!first_line) try out.append(allocator, '\n');
         first_line = false;
 
-        try wrapSingleLineAnsi(&out, line, width, indent, allocator);
+        try wrapSingleLineAnsi(&out, line, width, options, allocator);
     }
 
     return out.toOwnedSlice(allocator);
 }
 
-fn wrapSingleLine(out: *std.ArrayList(u8), line: []const u8, width: usize, indent: usize, allocator: std.mem.Allocator) !void {
+const WrapToken = struct {
+    text: []const u8,
+    preserve: bool,
+};
+
+fn wrapSingleLine(out: *std.ArrayList(u8), line: []const u8, width: usize, options: WrapOptions, allocator: std.mem.Allocator) !void {
     if (line.len == 0) return;
 
-    var word_it = std.mem.tokenizeAny(u8, line, " \t");
+    var pos: usize = 0;
     var line_display: usize = 0;
 
-    while (word_it.next()) |word| {
-        const word_display = visibleWidthUtf8(word);
+    while (nextWrapToken(line, &pos, options)) |token| {
+        const word_display = visibleWidthUtf8(token.text);
+
+        if (token.preserve) {
+            if (line_display == 0) {
+                try out.appendSlice(allocator, token.text);
+                line_display = word_display;
+                continue;
+            }
+
+            if (line_display + 1 + word_display <= width) {
+                try out.append(allocator, ' ');
+                try out.appendSlice(allocator, token.text);
+                line_display += 1 + word_display;
+                continue;
+            }
+
+            try out.append(allocator, '\n');
+            for (0..options.indent) |_| try out.append(allocator, ' ');
+            try out.appendSlice(allocator, token.text);
+            line_display = word_display;
+            continue;
+        }
 
         if (line_display == 0) {
-            line_display = try appendWordChunks(out, word, width, indent, false, allocator);
+            line_display = try appendWordChunks(out, token.text, width, options.indent, false, allocator);
             continue;
         }
 
         if (line_display + 1 + word_display <= width) {
             try out.append(allocator, ' ');
-            try out.appendSlice(allocator, word);
+            try out.appendSlice(allocator, token.text);
             line_display += 1 + word_display;
             continue;
         }
 
         try out.append(allocator, '\n');
-        for (0..indent) |_| try out.append(allocator, ' ');
-        line_display = try appendWordChunks(out, word, width, indent, true, allocator);
+        for (0..options.indent) |_| try out.append(allocator, ' ');
+        line_display = try appendWordChunks(out, token.text, width, options.indent, true, allocator);
     }
 }
 
@@ -223,31 +272,163 @@ fn appendWordChunks(out: *std.ArrayList(u8), word: []const u8, width: usize, ind
     return trailing_display;
 }
 
-fn wrapSingleLineAnsi(out: *std.ArrayList(u8), line: []const u8, width: usize, indent: usize, allocator: std.mem.Allocator) !void {
+fn wrapSingleLineAnsi(out: *std.ArrayList(u8), line: []const u8, width: usize, options: WrapOptions, allocator: std.mem.Allocator) !void {
     if (line.len == 0) return;
 
-    var word_it = std.mem.tokenizeAny(u8, line, " \t");
+    var pos: usize = 0;
     var line_visible: usize = 0;
 
-    while (word_it.next()) |word| {
-        const word_visible = ansiDisplayWidth(word);
+    while (nextWrapToken(line, &pos, options)) |token| {
+        const word_visible = ansiDisplayWidth(token.text);
+
+        if (token.preserve) {
+            if (line_visible == 0) {
+                try out.appendSlice(allocator, token.text);
+                line_visible = word_visible;
+                continue;
+            }
+
+            if (line_visible + 1 + word_visible <= width) {
+                try out.append(allocator, ' ');
+                try out.appendSlice(allocator, token.text);
+                line_visible += 1 + word_visible;
+                continue;
+            }
+
+            try out.append(allocator, '\n');
+            for (0..options.indent) |_| try out.append(allocator, ' ');
+            try out.appendSlice(allocator, token.text);
+            line_visible = word_visible;
+            continue;
+        }
 
         if (line_visible == 0) {
-            line_visible = try appendWordChunksAnsi(out, word, width, indent, false, allocator);
+            line_visible = try appendWordChunksAnsi(out, token.text, width, options.indent, false, allocator);
             continue;
         }
 
         if (line_visible + 1 + word_visible <= width) {
             try out.append(allocator, ' ');
-            try out.appendSlice(allocator, word);
+            try out.appendSlice(allocator, token.text);
             line_visible += 1 + word_visible;
             continue;
         }
 
         try out.append(allocator, '\n');
-        for (0..indent) |_| try out.append(allocator, ' ');
-        line_visible = try appendWordChunksAnsi(out, word, width, indent, true, allocator);
+        for (0..options.indent) |_| try out.append(allocator, ' ');
+        line_visible = try appendWordChunksAnsi(out, token.text, width, options.indent, true, allocator);
     }
+}
+
+fn nextWrapToken(line: []const u8, pos: *usize, options: WrapOptions) ?WrapToken {
+    while (pos.* < line.len and (line[pos.*] == ' ' or line[pos.*] == '\t')) pos.* += 1;
+    if (pos.* >= line.len) return null;
+
+    const start = pos.*;
+    const preserve = scanPreserveToken(line, pos, options) orelse {
+        while (pos.* < line.len and line[pos.*] != ' ' and line[pos.*] != '\t') pos.* += 1;
+        absorbStickySuffix(line, pos);
+        return .{ .text = line[start..pos.*], .preserve = false };
+    };
+    absorbStickySuffix(line, pos);
+    return .{ .text = line[start..pos.*], .preserve = preserve };
+}
+
+/// Closing punctuation glued to the prior token (e.g. `` `path`. `` or `https://x.com.`).
+fn absorbStickySuffix(line: []const u8, pos: *usize) void {
+    while (pos.* < line.len and isStickyClosingChar(line[pos.*])) : (pos.* += 1) {}
+}
+
+fn isStickyClosingChar(c: u8) bool {
+    return switch (c) {
+        '.', ',', ';', ':', '!', '?', ')', ']', '}', '\'', '"' => true,
+        else => false,
+    };
+}
+
+fn scanPreserveToken(line: []const u8, pos: *usize, options: WrapOptions) ?bool {
+    const rest = line[pos.*..];
+    if (options.preserve_backticks and rest.len > 0 and rest[0] == '`') {
+        if (std.mem.indexOfScalar(u8, rest[1..], '`')) |close_rel| {
+            pos.* += 2 + close_rel;
+            return true;
+        }
+        return null;
+    }
+    if (options.preserve_urls) {
+        if (urlSpanLen(rest)) |len| {
+            pos.* += len;
+            return true;
+        }
+    }
+    if (options.preserve_paths) {
+        if (pathSpanLen(rest)) |len| {
+            pos.* += len;
+            return true;
+        }
+    }
+    return null;
+}
+
+fn urlSpanLen(s: []const u8) ?usize {
+    const prefixes = [_][]const u8{
+        "http://",  "https://", "ftp://", "file://",
+        "ws://",    "wss://",   "mailto:",
+    };
+    for (prefixes) |prefix| {
+        if (std.mem.startsWith(u8, s, prefix)) {
+            return trimTrailingPunctuation(s[0..scanUntilWhitespace(s)]);
+        }
+    }
+    if (s.len >= 4 and std.mem.startsWith(u8, s, "www.")) {
+        return trimTrailingPunctuation(s[0..scanUntilWhitespace(s)]);
+    }
+    return null;
+}
+
+fn pathSpanLen(s: []const u8) ?usize {
+    if (s.len >= 2 and (std.mem.startsWith(u8, s, "./") or std.mem.startsWith(u8, s, "../"))) {
+        return trimTrailingPunctuation(s[0..scanPathChars(s)]);
+    }
+    if (s.len >= 2 and std.mem.startsWith(u8, s, "~/")) {
+        return trimTrailingPunctuation(s[0..scanPathChars(s)]);
+    }
+    if (s.len >= 2 and s[0] == '/' and !std.ascii.isWhitespace(s[1])) {
+        return trimTrailingPunctuation(s[0..scanPathChars(s)]);
+    }
+    if (s.len >= 3 and std.ascii.isAlphabetic(s[0]) and s[1] == ':' and (s[2] == '/' or s[2] == '\\')) {
+        return trimTrailingPunctuation(s[0..scanPathChars(s)]);
+    }
+    if (s.len >= 2 and s[0] == '\\' and s[1] == '\\') {
+        return trimTrailingPunctuation(s[0..scanPathChars(s)]);
+    }
+    return null;
+}
+
+fn scanUntilWhitespace(s: []const u8) usize {
+    var i: usize = 0;
+    while (i < s.len and !std.ascii.isWhitespace(s[i])) : (i += 1) {}
+    return i;
+}
+
+fn scanPathChars(s: []const u8) usize {
+    var i: usize = 0;
+    while (i < s.len and !std.ascii.isWhitespace(s[i])) : (i += 1) {
+        const c = s[i];
+        if (c == ',' or c == ';' or c == ')' or c == ']' or c == '}') break;
+    }
+    return i;
+}
+
+fn trimTrailingPunctuation(span: []const u8) usize {
+    var end = span.len;
+    while (end > 0) : (end -= 1) {
+        switch (span[end - 1]) {
+            '.', ',', ';', ':', '!', '?', ')', ']', '}' => continue,
+            else => return end,
+        }
+    }
+    return end;
 }
 
 fn appendWordChunksAnsi(out: *std.ArrayList(u8), word: []const u8, width: usize, indent: usize, continuation: bool, allocator: std.mem.Allocator) !usize {
@@ -459,4 +640,60 @@ test "wrap ansi utf8 display width" {
     defer allocator.free(wrapped);
 
     try std.testing.expectEqualStrings("\x1b[31m你好世\n  界\x1b[0m ok", wrapped);
+}
+
+test "wrap preserves urls" {
+    const allocator = std.testing.allocator;
+    const src = "See https://example.com/docs for details.";
+    const wrapped = try wrapWithOptions(src, 24, .{ .indent = 2 }, allocator);
+    defer allocator.free(wrapped);
+
+    try std.testing.expectEqualStrings(
+        "See\n  https://example.com/docs\n  for details.",
+        wrapped,
+    );
+}
+
+test "wrap preserves paths" {
+    const allocator = std.testing.allocator;
+    const src = "Edit ./config/docent.toml before running.";
+    const wrapped = try wrapWithOptions(src, 20, .{ .indent = 2 }, allocator);
+    defer allocator.free(wrapped);
+
+    try std.testing.expectEqualStrings(
+        "Edit\n  ./config/docent.toml\n  before running.",
+        wrapped,
+    );
+}
+
+test "wrap preserves backticks" {
+    const allocator = std.testing.allocator;
+    const src = "Use `--config-path` to override.";
+    const wrapped = try wrapWithOptions(src, 16, .{ .indent = 2 }, allocator);
+    defer allocator.free(wrapped);
+
+    try std.testing.expectEqualStrings(
+        "Use\n  `--config-path`\n  to override.",
+        wrapped,
+    );
+}
+
+test "wrap keeps sentence punctuation attached to backtick spans" {
+    const allocator = std.testing.allocator;
+    const src = "Search upward for `.config/docent.toml`.";
+    const wrapped = try wrapWithOptions(src, 70, .{}, allocator);
+    defer allocator.free(wrapped);
+
+    try std.testing.expect(std.mem.indexOf(u8, wrapped, "`.config/docent.toml`.") != null);
+    try std.testing.expect(std.mem.indexOf(u8, wrapped, "toml` .") == null);
+}
+
+test "wrap keeps sentence punctuation attached to urls" {
+    const allocator = std.testing.allocator;
+    const src = "See https://example.com for details.";
+    const wrapped = try wrapWithOptions(src, 70, .{}, allocator);
+    defer allocator.free(wrapped);
+
+    try std.testing.expect(std.mem.indexOf(u8, wrapped, "https://example.com.") != null);
+    try std.testing.expect(std.mem.indexOf(u8, wrapped, "com .") == null);
 }
