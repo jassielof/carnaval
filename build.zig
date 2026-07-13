@@ -1,19 +1,17 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    const mod_name = "carnaval";
-
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const lib_mod = b.addModule(mod_name, .{
-        .root_source_file = b.path("src/lib/root.zig"),
+    const lib_mod = b.addModule("carnaval", .{
+        .root_source_file = b.path("lib/carnaval/root.zig"),
         .optimize = optimize,
         .target = target,
     });
 
     const lib = b.addLibrary(.{
-        .name = mod_name,
+        .name = "carnaval",
         .root_module = lib_mod,
     });
 
@@ -35,7 +33,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{.{
-                .name = mod_name,
+                .name = "carnaval",
                 .module = lib_mod,
             }},
         }),
@@ -56,7 +54,7 @@ pub fn build(b: *std.Build) void {
 
     const fmt = b.addFmt(.{
         .check = true,
-        .paths = &.{"src/"},
+        .paths = &.{"lib/"},
     });
     check_step.dependOn(&fmt.step);
 }
