@@ -697,17 +697,12 @@ test "wrap keeps sentence punctuation attached to backtick spans" {
     try std.testing.expect(std.mem.indexOf(u8, wrapped, "toml` .") == null);
 }
 
-test "wrap keeps sentence punctuation attached to urls" {
+test "wrap() keeps sentence punctuation attached to URLs." {
     const allocator = std.testing.allocator;
-    const src = "See https://example.com for details.";
-    const wrapped = try wrapWithOptions(
-        src,
-        70,
-        .{},
-        allocator,
-    );
+    const src = "For details, see https://example.com.";
+    const wrapped = try wrapWithOptions(src, 70, .{}, allocator);
     defer allocator.free(wrapped);
 
-    try std.testing.expect(std.mem.indexOf(u8, wrapped, "https://example.com.") != null);
-    try std.testing.expect(std.mem.indexOf(u8, wrapped, "com .") == null);
+    try std.testing.expect(std.mem.find(u8, wrapped, "https://example.com.") != null);
+    try std.testing.expect(std.mem.find(u8, wrapped, "com .") == null);
 }
