@@ -353,36 +353,45 @@ fn scanPreserveToken(line: []const u8, pos: *usize, options: WrapOptions) ?bool 
             pos.* += 2 + close_rel;
             return true;
         }
+
         return null;
     }
+
     if (options.preserve_urls) {
         if (urlSpanLen(rest)) |len| {
             pos.* += len;
             return true;
         }
     }
+
     if (options.preserve_paths) {
         if (pathSpanLen(rest)) |len| {
             pos.* += len;
             return true;
         }
     }
+
     return null;
 }
 
 fn urlSpanLen(s: []const u8) ?usize {
     const prefixes = [_][]const u8{
-        "http://",  "https://", "ftp://", "file://",
-        "ws://",    "wss://",   "mailto:",
+        "http://",
+        "https://",
+        "ftp://",
+        "file://",
+        "ws://",
+        "wss://",
+        "mailto:",
     };
-    for (prefixes) |prefix| {
-        if (std.mem.startsWith(u8, s, prefix)) {
+
+    for (prefixes) |prefix|
+        if (std.mem.startsWith(u8, s, prefix))
             return trimTrailingPunctuation(s[0..scanUntilWhitespace(s)]);
-        }
-    }
-    if (s.len >= 4 and std.mem.startsWith(u8, s, "www.")) {
+
+    if (s.len >= 4 and std.mem.startsWith(u8, s, "www."))
         return trimTrailingPunctuation(s[0..scanUntilWhitespace(s)]);
-    }
+
     return null;
 }
 
@@ -691,7 +700,12 @@ test "wrap keeps sentence punctuation attached to backtick spans" {
 test "wrap keeps sentence punctuation attached to urls" {
     const allocator = std.testing.allocator;
     const src = "See https://example.com for details.";
-    const wrapped = try wrapWithOptions(src, 70, .{}, allocator);
+    const wrapped = try wrapWithOptions(
+        src,
+        70,
+        .{},
+        allocator,
+    );
     defer allocator.free(wrapped);
 
     try std.testing.expect(std.mem.indexOf(u8, wrapped, "https://example.com.") != null);
