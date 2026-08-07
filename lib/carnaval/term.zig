@@ -706,3 +706,55 @@ test "wrap() keeps sentence punctuation attached to URLs." {
     try std.testing.expect(std.mem.find(u8, wrapped, "https://example.com.") != null);
     try std.testing.expect(std.mem.find(u8, wrapped, "com .") == null);
 }
+
+test "wrap with indent" {
+    const allocator = std.testing.allocator;
+    const wrapped = try wrap("A small sentence for wrapping", 12, 4, allocator);
+    defer allocator.free(wrapped);
+
+    try std.testing.expectEqualStrings("A small\n    sentence for\n    wrapping", wrapped);
+}
+
+test "wrapAnsi ignores sgr sequences when measuring line width" {
+    const allocator = std.testing.allocator;
+    const src = "\x1b[31mred\x1b[0m \x1b[34mblue\x1b[0m green";
+    const wrapped = try wrapAnsi(src, 8, 2, allocator);
+    defer allocator.free(wrapped);
+
+    try std.testing.expectEqualStrings(
+        "\x1b[31mred\x1b[0m \x1b[34mblue\x1b[0m\n  green",
+        wrapped,
+    );
+}
+
+test "wrap preserves existing line breaks" {
+    const allocator = std.testing.allocator;
+    const wrapped = try wrap("alpha beta\ngamma delta", 8, 2, allocator);
+    defer allocator.free(wrapped);
+
+    try std.testing.expectEqualStrings("alpha\n  beta\ngamma\n  delta", wrapped);
+}
+
+test "wrap chunks a long utf8 word by display width" {
+    const allocator = std.testing.allocator;
+    const wrapped = try wrap("你好世界", 4, 2, allocator);
+    defer allocator.free(wrapped);
+
+    try std.testing.expectEqualStrings("你好\n  世界", wrapped);
+}
+
+test "utf8DisplayWidth counts wide and combining codepoints" {
+    try std.testing.expectEqual(@as(usize, 6), utf8DisplayWidth("a你好e\u{0301}"));
+}
+
+test "wrapWithOptions prose defaults preserve urls and paths" {
+    const allocator = std.testing.allocator;
+    const src = "Read https://ziglang.org and edit ./build.zig next.";
+    const wrapped = try wrapWithOptions(src, 22, WrapOptions.prose, allocator);
+    defer allocator.free(wrapped);
+
+    try std.testing.expect(std.mem.indexOf(u8, wrapped, "https://ziglang.org") != null);
+    try std.testing.expect(std.mem.indexOf(u8, wrapped, "./build.zig") != null);
+    try std.testing.expect(std.mem.indexOf(u8, wrapped, "https://zig\n") == null);
+    try std.testing.expect(std.mem.indexOf(u8, wrapped, "./build.\n") == null);
+}

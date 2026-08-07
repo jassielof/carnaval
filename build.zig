@@ -26,22 +26,6 @@ pub fn build(b: *std.Build) void {
 
     const tests_step = b.step("test", "Run the test suite");
 
-    const integration_tests = b.addTest(.{
-        .name = "Integration",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("tests/suite.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{.{
-                .name = "carnaval",
-                .module = carnaval_mod,
-            }},
-        }),
-    });
-
-    const run_integration_tests = b.addRunArtifact(integration_tests);
-    tests_step.dependOn(&run_integration_tests.step);
-
     const carnaval_mod_lib_tests = b.addTest(.{
         .name = "Carnaval",
         .root_module = carnaval_mod,

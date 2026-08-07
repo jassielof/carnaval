@@ -316,3 +316,100 @@ test "list styles marker and item independently" {
 
     try std.testing.expectEqualStrings("\x1b[31m-\x1b[0m \x1b[1mok\x1b[0m", out);
 }
+
+test "list renders exact bullet output" {
+    const rendered = try renderListAlloc(std.testing.allocator, &.{ "Glitter", "Masks", "Drums" }, .{});
+    defer std.testing.allocator.free(rendered);
+
+    try std.testing.expectEqualStrings("• Glitter\n• Masks\n• Drums", rendered);
+}
+
+test "list renders exact alphabet output across rollover" {
+    const rendered = try renderListAlloc(
+        std.testing.allocator,
+        &.{
+            "a", "b", "c", "d", "e", "f", "g", "h", "i",
+            "j", "k", "l", "m", "n", "o", "p", "q", "r",
+            "s", "t", "u", "v", "w", "x", "y", "z", "aa",
+        },
+        .{ .style = .alphabet },
+    );
+    defer std.testing.allocator.free(rendered);
+
+    try std.testing.expect(std.mem.indexOf(u8, rendered, " A. a") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, " Z. z") != null);
+    try std.testing.expect(std.mem.endsWith(u8, rendered, "AA. aa"));
+}
+
+test "list renders exact roman output and alignment" {
+    const rendered = try renderListAlloc(
+        std.testing.allocator,
+        &.{ "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten" },
+        .{ .style = .roman },
+    );
+    defer std.testing.allocator.free(rendered);
+
+    try std.testing.expectEqualStrings(
+        "   I. one\n" ++
+            "  II. two\n" ++
+            " III. three\n" ++
+            "  IV. four\n" ++
+            "   V. five\n" ++
+            "  VI. six\n" ++
+            " VII. seven\n" ++
+            "VIII. eight\n" ++
+            "  IX. nine\n" ++
+            "   X. ten",
+        rendered,
+    );
+}
+
+test "list renders multiline continuation under item text" {
+    const rendered = try renderListAlloc(
+        std.testing.allocator,
+        &.{ "short", "first line\nsecond line\nthird line" },
+        .{ .style = .arabic },
+    );
+    defer std.testing.allocator.free(rendered);
+
+    try std.testing.expectEqualStrings(
+        "1. short\n" ++
+            "2. first line\n" ++
+            "   second line\n" ++
+            "   third line",
+        rendered,
+    );
+}
+
+test "list renders styled marker and item output" {
+    const rendered = try renderListAlloc(std.testing.allocator, &.{"ok"}, .{
+        .style = .dash,
+        .marker_style = Style.init().fg(.{ .ansi16 = .green }),
+        .item_style = Style.init().bolded(),
+        .color_profile = .ansi16,
+    });
+    defer std.testing.allocator.free(rendered);
+
+    try std.testing.expectEqualStrings("\x1b[32m-\x1b[0m \x1b[1mok\x1b[0m", rendered);
+}
+
+test "list renders nested items" {
+    const items = [_]ListItem{
+        ListItem.withChildren("prepare", &.{
+            ListItem.init("mask"),
+            ListItem.init("drums"),
+        }),
+        ListItem.init("parade"),
+    };
+
+    const rendered = try renderListItemsAlloc(std.testing.allocator, &items, .{ .style = .dash });
+    defer std.testing.allocator.free(rendered);
+
+    try std.testing.expectEqualStrings(
+        "- prepare\n" ++
+            "  - mask\n" ++
+            "  - drums\n" ++
+            "- parade",
+        rendered,
+    );
+}
