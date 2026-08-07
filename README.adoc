@@ -7,7 +7,7 @@ Terminal styling for Zig.
 
 == Documentation
 
-See link:https://jassielof.github.io/carnaval/docs/carnaval/[the library documentation] for more information.
+See link:https://jassielof.github.io/carnaval/lib/carnaval/[the library documentation] for more information.
 
 [acknowledgments]
 == Acknowledgments and prior art

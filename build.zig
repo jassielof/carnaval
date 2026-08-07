@@ -17,7 +17,7 @@ pub fn build(b: *std.Build) void {
 
     const carnaval_docs = b.addInstallDirectory(.{
         .source_dir = carnaval_mod_lib.getEmittedDocs(),
-        .install_dir = .{ .custom = "docs" },
+        .install_dir = .{ .custom = "docs/lib" },
         .install_subdir = "carnaval",
     });
 
