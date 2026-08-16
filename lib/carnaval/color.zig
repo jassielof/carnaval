@@ -152,7 +152,45 @@ pub const Color = union(enum) {
             },
         };
     }
+
+    /// The toRgb function converts a color to its nearest RGB representation.
+    pub fn toRgb(self: Color) ?Rgb {
+        return switch (self) {
+            .none => null,
+            .ansi16 => |value| ansi256ToRgb(ansi16ToAnsi256(value)),
+            .ansi256 => |value| ansi256ToRgb(value),
+            .true_color => |value| value,
+        };
+    }
 };
+
+/// The blend function linearly interpolates two colors in RGB space.
+pub fn blend(first: Color, second: Color, amount: f32) Color {
+    const a = first.toRgb() orelse return second;
+    const b = second.toRgb() orelse return first;
+    const t = std.math.clamp(amount, 0, 1);
+    return Color.rgb(channel(a.r, b.r, t), channel(a.g, b.g, t), channel(a.b, b.b, t));
+}
+
+/// The lighten function moves a color toward white by `amount`.
+pub fn lighten(value: Color, amount: f32) Color {
+    return blend(value, Color.rgb(255, 255, 255), amount);
+}
+
+/// The darken function moves a color toward black by `amount`.
+pub fn darken(value: Color, amount: f32) Color {
+    return blend(value, Color.rgb(0, 0, 0), amount);
+}
+
+/// The complementary function returns the RGB complement of `value`.
+pub fn complementary(value: Color) Color {
+    const rgb = value.toRgb() orelse return .none;
+    return Color.rgb(255 - rgb.r, 255 - rgb.g, 255 - rgb.b);
+}
+
+fn channel(a: u8, b: u8, amount: f32) u8 {
+    return @intFromFloat(@round(@as(f32, @floatFromInt(a)) + (@as(f32, @floatFromInt(b)) - @as(f32, @floatFromInt(a))) * amount));
+}
 
 fn parseHexByte(value: []const u8) ?u8 {
     return std.fmt.parseInt(u8, value, 16) catch null;
@@ -306,4 +344,10 @@ test "emit none color writes nothing and reports false" {
 test "Color.fromHex parses RGB values" {
     try std.testing.expectEqualDeep(Color.rgb(17, 34, 255), try Color.fromHex("#1122ff"));
     try std.testing.expectError(error.InvalidColor, Color.fromHex("#123"));
+}
+
+test "color utilities use RGB interpolation" {
+    try std.testing.expectEqualDeep(Color.rgb(128, 0, 128), blend(Color.rgb(255, 0, 0), Color.rgb(0, 0, 255), 0.5));
+    try std.testing.expectEqualDeep(Color.rgb(0, 255, 255), complementary(Color.rgb(255, 0, 0)));
+    try std.testing.expectEqualDeep(Color.rgb(128, 128, 128), lighten(.{ .ansi16 = .black }, 0.5));
 }
