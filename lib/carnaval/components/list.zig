@@ -23,11 +23,15 @@ pub const ListOptions = struct {
     item_style: Style = .{},
     color_profile: ColorProfile = .none,
     align_markers: bool = true,
+    /// Optionally selects an item style by zero-based sibling index.
+    item_style_fn: ?*const fn (usize) Style = null,
 };
 
 pub const ListItem = struct {
     text: []const u8,
     children: []const ListItem = &.{},
+    /// Hidden items and their descendants are omitted from rendering.
+    hidden: bool = false,
 
     pub fn init(text: []const u8) ListItem {
         return .{ .text = text };
@@ -35,6 +39,13 @@ pub const ListItem = struct {
 
     pub fn withChildren(text: []const u8, children: []const ListItem) ListItem {
         return .{ .text = text, .children = children };
+    }
+
+    /// The hide function returns an item with its visibility changed.
+    pub fn hide(self: ListItem, hidden: bool) ListItem {
+        var out = self;
+        out.hidden = hidden;
+        return out;
     }
 };
 
@@ -67,10 +78,18 @@ pub fn renderListItemsAlloc(allocator: std.mem.Allocator, items: []const ListIte
 }
 
 fn renderItems(items: []const ListItem, depth: usize, writer: *std.Io.Writer, options: ListOptions) anyerror!void {
-    const marker_width = markerColumnWidth(options.style, items.len, options.align_markers);
+    var visible_count: usize = 0;
+    for (items) |entry| {
+        if (!entry.hidden) visible_count += 1;
+    }
+    const marker_width = markerColumnWidth(options.style, visible_count, options.align_markers);
+    var visible_index: usize = 0;
     for (items, 0..) |entry, i| {
-        if (i > 0) try writer.writeByte('\n');
-        try renderEntry(entry.text, entry.children, i, depth, marker_width, writer, options);
+        _ = i;
+        if (entry.hidden) continue;
+        if (visible_index > 0) try writer.writeByte('\n');
+        try renderEntry(entry.text, entry.children, visible_index, depth, marker_width, writer, options);
+        visible_index += 1;
     }
 }
 
@@ -89,7 +108,7 @@ fn renderEntry(
     try writeDepthIndent(writer, options, depth);
     try writeMarker(writer, options, marker, marker_width);
     try writer.writeAll(options.marker_separator);
-    try writeMultilineText(writer, options, text, depth, marker_width);
+    try writeMultilineText(writer, options, text, depth, marker_width, index);
 
     if (children.len > 0) {
         try writer.writeByte('\n');
@@ -116,6 +135,7 @@ fn writeMultilineText(
     text: []const u8,
     depth: usize,
     marker_width: usize,
+    index: usize,
 ) !void {
     var lines = std.mem.splitScalar(u8, text, '\n');
     var first = true;
@@ -128,7 +148,8 @@ fn writeMultilineText(
         }
         first = false;
 
-        try options.item_style.renderWithProfile(line, writer, options.color_profile);
+        const style = if (options.item_style_fn) |callback| callback(index) else options.item_style;
+        try style.renderWithProfile(line, writer, options.color_profile);
     }
 }
 
