@@ -18,6 +18,18 @@ pub const TableStyle = enum {
     unicode,
 };
 
+/// The TableOptions structure configures common table rendering behavior.
+pub const TableOptions = struct {
+    style: TableStyle = .unicode,
+    color_profile: ColorProfile = .none,
+    max_cell_width: ?usize = null,
+};
+
+/// The renderTableWithOptions function renders a table using a single configuration value.
+pub fn renderTableWithOptions(allocator: std.mem.Allocator, headers: []const []const u8, rows: []const []const []const u8, writer: *std.Io.Writer, options: TableOptions) !void {
+    return renderTableStyled(allocator, headers, rows, writer, options.color_profile, options.style);
+}
+
 pub fn renderTable(
     allocator: std.mem.Allocator,
     headers: []const []const u8,
