@@ -2,7 +2,11 @@ const std = @import("std");
 const builtin = @import("builtin");
 const term = @import("term.zig");
 
+/// The ColorProfile enumeration describes the color capability of an output terminal.
 pub const ColorProfile = enum {
+    /// Text attributes are available but colors are not.
+    ascii,
+    /// Neither text attributes nor colors should be emitted.
     none,
     ansi16,
     ansi256,

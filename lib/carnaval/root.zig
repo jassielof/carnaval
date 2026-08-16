@@ -1,9 +1,13 @@
+//! The carnaval package provides ANSI-aware terminal styling and layout primitives.
+
 const std = @import("std");
 
 pub const color = @import("color.zig");
 pub const Ansi16 = color.Ansi16;
 pub const Rgb = color.Rgb;
 pub const Color = color.Color;
+pub const Border = @import("Border.zig");
+pub const Insets = @import("Insets.zig");
 pub const list = @import("components/list.zig");
 pub const ListStyle = list.ListStyle;
 pub const ListOptions = list.ListOptions;

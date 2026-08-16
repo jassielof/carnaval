@@ -4,6 +4,7 @@ const ColorProfile = @import("profile.zig").ColorProfile;
 const escape = @import("escape.zig");
 pub const Rgb = @import("RgbColor.zig");
 
+/// The Ansi16 enumeration contains the standard and bright ANSI palette indexes.
 pub const Ansi16 = enum(u8) {
     black = 0,
     red = 1,
@@ -23,6 +24,7 @@ pub const Ansi16 = enum(u8) {
     bright_white = 15,
 };
 
+/// The Color union represents a terminal color independently of the output profile.
 pub const Color = union(enum) {
     none,
     ansi16: Ansi16,
@@ -39,8 +41,19 @@ pub const Color = union(enum) {
         };
     }
 
+    /// The fromHex function parses a six-digit RGB color in `#RRGGBB` or `RRGGBB` form.
+    pub fn fromHex(value: []const u8) error{InvalidColor}!Color {
+        const digits = if (value.len == 7 and value[0] == '#') value[1..] else value;
+        if (digits.len != 6) return error.InvalidColor;
+        return .{ .true_color = .{
+            .r = parseHexByte(digits[0..2]) orelse return error.InvalidColor,
+            .g = parseHexByte(digits[2..4]) orelse return error.InvalidColor,
+            .b = parseHexByte(digits[4..6]) orelse return error.InvalidColor,
+        } };
+    }
+
     pub fn emitFg(self: Color, writer: *std.Io.Writer, profile: ColorProfile) !bool {
-        if (profile == .none) return false;
+        if (profile == .none or profile == .ascii) return false;
         return switch (self.downsample(profile)) {
             .none => false,
             .ansi16 => |v| blk: {
@@ -67,7 +80,7 @@ pub const Color = union(enum) {
     }
 
     pub fn emitBg(self: Color, writer: *std.Io.Writer, profile: ColorProfile) !bool {
-        if (profile == .none) return false;
+        if (profile == .none or profile == .ascii) return false;
         return switch (self.downsample(profile)) {
             .none => false,
             .ansi16 => |v| blk: {
@@ -93,9 +106,37 @@ pub const Color = union(enum) {
         };
     }
 
+    /// The emitUnderline function writes an SGR underline-color sequence and reports whether color was emitted.
+    pub fn emitUnderline(self: Color, writer: *std.Io.Writer, profile: ColorProfile) !bool {
+        if (profile == .none or profile == .ascii) return false;
+        return switch (self.downsample(profile)) {
+            .none => false,
+            .ansi16 => |v| blk: {
+                const n = @intFromEnum(v);
+                const code: u8 = if (n < 8) 30 + n else 90 + (n - 8);
+                var buf: [16]u8 = undefined;
+                const seq = try std.fmt.bufPrint(&buf, "{s}58:5:{d}m", .{ escape.csi, code });
+                try writer.writeAll(seq);
+                break :blk true;
+            },
+            .ansi256 => |v| blk: {
+                var buf: [20]u8 = undefined;
+                const seq = try std.fmt.bufPrint(&buf, "{s}58:5:{d}m", .{ escape.csi, v });
+                try writer.writeAll(seq);
+                break :blk true;
+            },
+            .true_color => |rgb_color| blk: {
+                var buf: [32]u8 = undefined;
+                const seq = try std.fmt.bufPrint(&buf, "{s}58:2::{d}:{d}:{d}m", .{ escape.csi, rgb_color.r, rgb_color.g, rgb_color.b });
+                try writer.writeAll(seq);
+                break :blk true;
+            },
+        };
+    }
+
     pub fn downsample(self: Color, profile: ColorProfile) Color {
         return switch (profile) {
-            .none => .none,
+            .none, .ascii => .none,
             .true_color => self,
             .ansi256 => switch (self) {
                 .none => .none,
@@ -112,6 +153,10 @@ pub const Color = union(enum) {
         };
     }
 };
+
+fn parseHexByte(value: []const u8) ?u8 {
+    return std.fmt.parseInt(u8, value, 16) catch null;
+}
 
 fn ansi16ToAnsi256(v: Ansi16) u8 {
     return @intFromEnum(v);
@@ -256,4 +301,9 @@ test "emit none color writes nothing and reports false" {
     try std.testing.expect(!try none.emitFg(&writer, .ansi16));
     try std.testing.expect(!try none.emitBg(&writer, .ansi16));
     try std.testing.expectEqualStrings("", writer.buffered());
+}
+
+test "Color.fromHex parses RGB values" {
+    try std.testing.expectEqualDeep(Color.rgb(17, 34, 255), try Color.fromHex("#1122ff"));
+    try std.testing.expectError(error.InvalidColor, Color.fromHex("#123"));
 }
