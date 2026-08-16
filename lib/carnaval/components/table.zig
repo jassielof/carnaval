@@ -204,6 +204,19 @@ fn writePaddedBodyCell(writer: *std.Io.Writer, cell: []const u8, col_width: usiz
     if (dw < col_width) try writeRepeat(writer, ' ', col_width - dw);
 }
 
+fn writeMarkdownCell(writer: *std.Io.Writer, cell: []const u8, col_width: usize) !void {
+    for (cell) |byte| switch (byte) {
+        '|', '\\' => {
+            try writer.writeByte('\\');
+            try writer.writeByte(byte);
+        },
+        '\n' => try writer.writeAll("<br>"),
+        else => try writer.writeByte(byte),
+    };
+    const width = term.ansiDisplayWidth(cell);
+    if (width < col_width) try writeRepeat(writer, ' ', col_width - width);
+}
+
 fn renderAsciiGrid(
     writer: *std.Io.Writer,
     headers: []const []const u8,
@@ -281,7 +294,7 @@ fn mdRow(
         if (is_header) {
             try writePaddedHeaderCell(writer, cell, cw, color_profile);
         } else {
-            try writePaddedBodyCell(writer, cell, cw);
+            if (is_header) try writePaddedHeaderCell(writer, cell, cw, color_profile) else try writeMarkdownCell(writer, cell, cw);
         }
         try writer.writeAll(" |");
     }
