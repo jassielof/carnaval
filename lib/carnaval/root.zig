@@ -64,6 +64,10 @@ pub const placeVerticalAlloc = place.placeVerticalAlloc;
 pub const ranges = @import("ranges.zig");
 pub const Range = ranges.Range;
 pub const styleRangesAlloc = ranges.styleRangesAlloc;
+pub const tree = @import("components/tree.zig");
+pub const TreeNode = tree.TreeNode;
+pub const TreeOptions = tree.TreeOptions;
+pub const renderTreeAlloc = tree.renderAlloc;
 
 comptime {
     std.testing.refAllDecls(@This());
