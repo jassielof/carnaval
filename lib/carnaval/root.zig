@@ -16,9 +16,14 @@ pub const table = @import("components/table.zig");
 pub const TableStyle = table.TableStyle;
 pub const renderTable = table.renderTable;
 pub const renderTableStyled = table.renderTableStyled;
+pub const renderTableAlloc = table.renderTableAlloc;
+pub const renderTableStyledAlloc = table.renderTableStyledAlloc;
 pub const renderAsciiTable = table.renderAscii;
 pub const renderAsciiTableStyled = table.renderAsciiStyled;
+pub const renderAsciiTableAlloc = table.renderAsciiAlloc;
+pub const renderAsciiTableStyledAlloc = table.renderAsciiStyledAlloc;
 pub const escape = @import("escape.zig");
+pub const ansi = @import("ansi.zig");
 pub const profile = @import("profile.zig");
 pub const ColorProfile = profile.ColorProfile;
 pub const colorProfile = profile.colorProfile;
@@ -36,6 +41,14 @@ pub const wrapAnsi = term.wrapAnsi;
 pub const wrapAnsiWithOptions = term.wrapAnsiWithOptions;
 pub const utf8DisplayWidth = term.utf8DisplayWidth;
 pub const ansiDisplayWidth = term.ansiDisplayWidth;
+pub const layout = @import("layout.zig");
+pub const HorizontalAlignment = layout.HorizontalAlignment;
+pub const VerticalAlignment = layout.VerticalAlignment;
+pub const width = layout.width;
+pub const height = layout.height;
+pub const size = layout.size;
+pub const joinHorizontalAlloc = layout.joinHorizontalAlloc;
+pub const joinVerticalAlloc = layout.joinVerticalAlloc;
 
 comptime {
     std.testing.refAllDecls(@This());
@@ -89,4 +102,18 @@ test renderList {
     defer std.testing.allocator.free(out);
 
     try std.testing.expectEqualStrings("- alpha\n- beta", out);
+}
+
+test "joinVerticalAlloc" {
+    const out = try joinVerticalAlloc(std.testing.allocator, .center, &.{ "wide", "x" });
+    defer std.testing.allocator.free(out);
+
+    try std.testing.expectEqualStrings("wide\n x  ", out);
+}
+
+test "renderTableAlloc" {
+    const out = try renderTableAlloc(std.testing.allocator, &.{"Name"}, &.{&.{"Carnaval"}}, .ascii);
+    defer std.testing.allocator.free(out);
+
+    try std.testing.expectEqualStrings("+----------+\n| Name     |\n+----------+\n| Carnaval |\n+----------+\n", out);
 }

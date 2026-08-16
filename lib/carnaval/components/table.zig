@@ -57,6 +57,31 @@ pub fn renderTableStyled(
     }
 }
 
+/// Like `renderTable`, but returns an owned buffer allocated with `allocator`.
+pub fn renderTableAlloc(
+    allocator: std.mem.Allocator,
+    headers: []const []const u8,
+    rows: []const []const []const u8,
+    style: TableStyle,
+) ![]u8 {
+    return renderTableStyledAlloc(allocator, headers, rows, .none, style);
+}
+
+/// Like `renderTableStyled`, but returns an owned buffer allocated with `allocator`.
+pub fn renderTableStyledAlloc(
+    allocator: std.mem.Allocator,
+    headers: []const []const u8,
+    rows: []const []const []const u8,
+    color_profile: ColorProfile,
+    style: TableStyle,
+) ![]u8 {
+    var writer = std.Io.Writer.Allocating.init(allocator);
+    defer writer.deinit();
+
+    try renderTableStyled(allocator, headers, rows, &writer.writer, color_profile, style);
+    return writer.toOwnedSlice();
+}
+
 /// Renders an ASCII `+---+' table (styled header when color is enabled).
 pub fn renderAscii(
     allocator: std.mem.Allocator,
@@ -65,6 +90,15 @@ pub fn renderAscii(
     writer: *std.Io.Writer,
 ) !void {
     return renderTable(allocator, headers, rows, writer, .ascii);
+}
+
+/// Like `renderAscii`, but returns an owned buffer allocated with `allocator`.
+pub fn renderAsciiAlloc(
+    allocator: std.mem.Allocator,
+    headers: []const []const u8,
+    rows: []const []const []const u8,
+) ![]u8 {
+    return renderTableAlloc(allocator, headers, rows, .ascii);
 }
 
 /// Same as `renderAscii` with explicit color profile for the header row.
@@ -76,6 +110,16 @@ pub fn renderAsciiStyled(
     color_profile: ColorProfile,
 ) !void {
     return renderTableStyled(allocator, headers, rows, writer, color_profile, .ascii);
+}
+
+/// Like `renderAsciiStyled`, but returns an owned buffer allocated with `allocator`.
+pub fn renderAsciiStyledAlloc(
+    allocator: std.mem.Allocator,
+    headers: []const []const u8,
+    rows: []const []const []const u8,
+    color_profile: ColorProfile,
+) ![]u8 {
+    return renderTableStyledAlloc(allocator, headers, rows, color_profile, .ascii);
 }
 
 test renderAscii {
@@ -474,12 +518,7 @@ fn renderTableAllocTest(
     style: TableStyle,
     color_profile: ColorProfile,
 ) ![]u8 {
-    const allocator = std.testing.allocator;
-    var writer = std.Io.Writer.Allocating.init(allocator);
-    defer writer.deinit();
-
-    try renderTableStyled(allocator, headers, rows, &writer.writer, color_profile, style);
-    return writer.toOwnedSlice();
+    return renderTableStyledAlloc(std.testing.allocator, headers, rows, color_profile, style);
 }
 
 test "ascii table renders exact grid output" {
@@ -575,4 +614,16 @@ test "table rejects rows with wrong column count" {
             .ascii,
         ),
     );
+}
+
+test "renderTableAlloc returns owned output" {
+    const rendered = try renderTableAlloc(
+        std.testing.allocator,
+        &.{"Name"},
+        &.{&.{"Carnaval"}},
+        .markdown,
+    );
+    defer std.testing.allocator.free(rendered);
+
+    try std.testing.expectEqualStrings("| Name     |\n|----------|\n| Carnaval |\n", rendered);
 }

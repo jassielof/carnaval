@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const Utf8Unit = @import("Utf8Unit.zig");
+const ansi = @import("ansi.zig");
 
 extern "kernel32" fn SetConsoleOutputCP(code_page: std.os.windows.UINT) callconv(.winapi) std.os.windows.BOOL;
 extern "kernel32" fn GetConsoleMode(handle: std.os.windows.HANDLE, mode: *std.os.windows.DWORD) callconv(.winapi) std.os.windows.BOOL;
@@ -118,7 +119,8 @@ fn globalEnviron() std.process.Environ {
 
 /// Controls word-wrapping behavior for terminal prose.
 pub const WrapOptions = struct {
-    /// Spaces inserted before continuation lines.
+    /// Spaces inserted before continuation lines. It must be smaller than the
+    /// requested width so every continuation has room for text.
     indent: usize = 0,
     /// Keep `http://`, `https://`, and similar spans on one line.
     preserve_urls: bool = true,
@@ -137,6 +139,7 @@ pub fn wrap(text: []const u8, width: usize, indent: usize, allocator: std.mem.Al
 
 pub fn wrapWithOptions(text: []const u8, width: usize, options: WrapOptions, allocator: std.mem.Allocator) ![]u8 {
     if (width == 0) return allocator.dupe(u8, text);
+    if (options.indent >= width) return error.IndentExceedsWidth;
 
     var out = try std.ArrayList(u8).initCapacity(allocator, 0);
     defer out.deinit(allocator);
@@ -159,6 +162,7 @@ pub fn wrapAnsi(text: []const u8, width: usize, indent: usize, allocator: std.me
 
 pub fn wrapAnsiWithOptions(text: []const u8, width: usize, options: WrapOptions, allocator: std.mem.Allocator) ![]u8 {
     if (width == 0) return allocator.dupe(u8, text);
+    if (options.indent >= width) return error.IndentExceedsWidth;
 
     var out = try std.ArrayList(u8).initCapacity(allocator, 0);
     defer out.deinit(allocator);
@@ -211,7 +215,7 @@ fn wrapSingleLine(out: *std.ArrayList(u8), line: []const u8, width: usize, optio
         }
 
         if (line_display == 0) {
-            line_display = try appendWordChunks(out, token.text, width, options.indent, false, allocator);
+            line_display = try appendWordChunks(out, token.text, width, options.indent, allocator);
             continue;
         }
 
@@ -224,11 +228,11 @@ fn wrapSingleLine(out: *std.ArrayList(u8), line: []const u8, width: usize, optio
 
         try out.append(allocator, '\n');
         for (0..options.indent) |_| try out.append(allocator, ' ');
-        line_display = try appendWordChunks(out, token.text, width, options.indent, true, allocator);
+        line_display = try appendWordChunks(out, token.text, width, options.indent, allocator);
     }
 }
 
-fn appendWordChunks(out: *std.ArrayList(u8), word: []const u8, width: usize, indent: usize, continuation: bool, allocator: std.mem.Allocator) !usize {
+fn appendWordChunks(out: *std.ArrayList(u8), word: []const u8, width: usize, indent: usize, allocator: std.mem.Allocator) !usize {
     const word_display = visibleWidthUtf8(word);
     if (word_display <= width) {
         try out.appendSlice(allocator, word);
@@ -244,7 +248,7 @@ fn appendWordChunks(out: *std.ArrayList(u8), word: []const u8, width: usize, ind
     while (i < word.len) {
         const unit = utf8Unit(word, i);
         if (chunk_display + unit.display_width > width and chunk_display > 0) {
-            if (started_any or continuation) {
+            if (started_any) {
                 try out.append(allocator, '\n');
                 for (0..indent) |_| try out.append(allocator, ' ');
             }
@@ -261,7 +265,7 @@ fn appendWordChunks(out: *std.ArrayList(u8), word: []const u8, width: usize, ind
     }
 
     if (chunk_start < word.len) {
-        if (started_any or continuation) {
+        if (started_any) {
             try out.append(allocator, '\n');
             for (0..indent) |_| try out.append(allocator, ' ');
         }
@@ -303,7 +307,7 @@ fn wrapSingleLineAnsi(out: *std.ArrayList(u8), line: []const u8, width: usize, o
         }
 
         if (line_visible == 0) {
-            line_visible = try appendWordChunksAnsi(out, token.text, width, options.indent, false, allocator);
+            line_visible = try appendWordChunksAnsi(out, token.text, width, options.indent, allocator);
             continue;
         }
 
@@ -316,7 +320,7 @@ fn wrapSingleLineAnsi(out: *std.ArrayList(u8), line: []const u8, width: usize, o
 
         try out.append(allocator, '\n');
         for (0..options.indent) |_| try out.append(allocator, ' ');
-        line_visible = try appendWordChunksAnsi(out, token.text, width, options.indent, true, allocator);
+        line_visible = try appendWordChunksAnsi(out, token.text, width, options.indent, allocator);
     }
 }
 
@@ -348,9 +352,17 @@ fn isStickyClosingChar(c: u8) bool {
 
 fn scanPreserveToken(line: []const u8, pos: *usize, options: WrapOptions) ?bool {
     const rest = line[pos.*..];
-    if (options.preserve_backticks and rest.len > 0 and rest[0] == '`') {
-        if (std.mem.indexOfScalar(u8, rest[1..], '`')) |close_rel| {
-            pos.* += 2 + close_rel;
+    var control_prefix_len: usize = 0;
+    while (true) {
+        const sequence_len = ansi.sequenceLen(rest[control_prefix_len..]);
+        if (sequence_len == 0) break;
+        control_prefix_len += sequence_len;
+    }
+    const visible_rest = rest[control_prefix_len..];
+
+    if (options.preserve_backticks and visible_rest.len > 0 and visible_rest[0] == '`') {
+        if (std.mem.indexOfScalar(u8, visible_rest[1..], '`')) |close_rel| {
+            pos.* += control_prefix_len + 2 + close_rel;
             return true;
         }
 
@@ -358,15 +370,15 @@ fn scanPreserveToken(line: []const u8, pos: *usize, options: WrapOptions) ?bool 
     }
 
     if (options.preserve_urls) {
-        if (urlSpanLen(rest)) |len| {
-            pos.* += len;
+        if (urlSpanLen(visible_rest)) |len| {
+            pos.* += control_prefix_len + len;
             return true;
         }
     }
 
     if (options.preserve_paths) {
-        if (pathSpanLen(rest)) |len| {
-            pos.* += len;
+        if (pathSpanLen(visible_rest)) |len| {
+            pos.* += control_prefix_len + len;
             return true;
         }
     }
@@ -440,7 +452,7 @@ fn trimTrailingPunctuation(span: []const u8) usize {
     return end;
 }
 
-fn appendWordChunksAnsi(out: *std.ArrayList(u8), word: []const u8, width: usize, indent: usize, continuation: bool, allocator: std.mem.Allocator) !usize {
+fn appendWordChunksAnsi(out: *std.ArrayList(u8), word: []const u8, width: usize, indent: usize, allocator: std.mem.Allocator) !usize {
     if (ansiDisplayWidth(word) <= width) {
         try out.appendSlice(allocator, word);
         return ansiDisplayWidth(word);
@@ -453,7 +465,7 @@ fn appendWordChunksAnsi(out: *std.ArrayList(u8), word: []const u8, width: usize,
     var trailing_visible: usize = 0;
 
     while (i < word.len) {
-        const esc_len = ansiSeqLen(word[i..]);
+        const esc_len = ansi.sequenceLen(word[i..]);
         if (esc_len > 0) {
             i += esc_len;
             continue;
@@ -461,7 +473,7 @@ fn appendWordChunksAnsi(out: *std.ArrayList(u8), word: []const u8, width: usize,
 
         const unit = utf8Unit(word, i);
         if (chunk_visible + unit.display_width > width and chunk_visible > 0) {
-            if (started_any or continuation) {
+            if (started_any) {
                 try out.append(allocator, '\n');
                 for (0..indent) |_| try out.append(allocator, ' ');
             }
@@ -478,7 +490,7 @@ fn appendWordChunksAnsi(out: *std.ArrayList(u8), word: []const u8, width: usize,
     }
 
     if (chunk_start < word.len) {
-        if (started_any or continuation) {
+        if (started_any) {
             try out.append(allocator, '\n');
             for (0..indent) |_| try out.append(allocator, ' ');
         }
@@ -489,12 +501,16 @@ fn appendWordChunksAnsi(out: *std.ArrayList(u8), word: []const u8, width: usize,
     return trailing_visible;
 }
 
-/// Terminal display width for UTF-8 text while ignoring ANSI CSI escape sequences.
+/// Terminal display width for UTF-8 text while ignoring ANSI escape sequences.
+///
+/// For multi-line text this returns the width of its widest line, not the sum of
+/// every line's widths. This is the horizontal space the text occupies in a terminal.
 pub fn ansiDisplayWidth(s: []const u8) usize {
     var i: usize = 0;
-    var visible: usize = 0;
+    var line_width: usize = 0;
+    var max_width: usize = 0;
     while (i < s.len) {
-        const esc_len = ansiSeqLen(s[i..]);
+        const esc_len = ansi.sequenceLen(s[i..]);
         if (esc_len > 0) {
             i += esc_len;
             continue;
@@ -502,14 +518,35 @@ pub fn ansiDisplayWidth(s: []const u8) usize {
 
         const unit = utf8Unit(s, i);
         i += unit.len;
-        visible += unit.display_width;
+        if (s[i - unit.len] == '\n') {
+            max_width = @max(max_width, line_width);
+            line_width = 0;
+        } else {
+            line_width += unit.display_width;
+        }
     }
-    return visible;
+    return @max(max_width, line_width);
 }
 
-/// Terminal display width for UTF-8 text (excludes ANSI sequences; use `wrapAnsi` helpers for styled strings).
+/// Terminal display width for UTF-8 text.
+///
+/// For multi-line text this returns the width of its widest line. ANSI sequences
+/// are treated as text; use `ansiDisplayWidth` for styled strings.
 pub fn utf8DisplayWidth(s: []const u8) usize {
-    return visibleWidthUtf8(s);
+    var i: usize = 0;
+    var line_width: usize = 0;
+    var max_width: usize = 0;
+    while (i < s.len) {
+        const unit = utf8Unit(s, i);
+        i += unit.len;
+        if (s[i - unit.len] == '\n') {
+            max_width = @max(max_width, line_width);
+            line_width = 0;
+        } else {
+            line_width += unit.display_width;
+        }
+    }
+    return @max(max_width, line_width);
 }
 
 test utf8DisplayWidth {
@@ -586,18 +623,6 @@ fn isWideCodepoint(cp: u21) bool {
 
 fn inRange(cp: u21, lo: u21, hi: u21) bool {
     return cp >= lo and cp <= hi;
-}
-
-fn ansiSeqLen(s: []const u8) usize {
-    if (s.len < 2) return 0;
-    if (s[0] != 0x1b or s[1] != '[') return 0;
-
-    var i: usize = 2;
-    while (i < s.len) : (i += 1) {
-        const ch = s[i];
-        if (ch >= 0x40 and ch <= 0x7e) return i + 1;
-    }
-    return 0;
 }
 
 test "wrap simple paragraph" {
@@ -741,6 +766,38 @@ test "wrap chunks a long utf8 word by display width" {
     defer allocator.free(wrapped);
 
     try std.testing.expectEqualStrings("你好\n  世界", wrapped);
+}
+
+test "wrap does not insert an empty line before a long continuation word" {
+    const allocator = std.testing.allocator;
+    const wrapped = try wrap("go abcdef", 3, 1, allocator);
+    defer allocator.free(wrapped);
+
+    try std.testing.expectEqualStrings("go\n abc\n def", wrapped);
+}
+
+test "wrap rejects an indent that leaves no room for continuation text" {
+    try std.testing.expectError(
+        error.IndentExceedsWidth,
+        wrap("alpha beta", 2, 2, std.testing.allocator),
+    );
+}
+
+test "ansi display width ignores OSC 8 hyperlinks" {
+    const link = "\x1b]8;;https://example.com\x1b\\link\x1b]8;;\x1b\\";
+    try std.testing.expectEqual(@as(usize, 4), ansiDisplayWidth(link));
+}
+
+test "wrapAnsi preserves a URL prefixed by ANSI styling" {
+    const allocator = std.testing.allocator;
+    const src = "See \x1b[34mhttps://example.com/docs\x1b[0m now";
+    const wrapped = try wrapAnsi(src, 12, 2, allocator);
+    defer allocator.free(wrapped);
+
+    try std.testing.expectEqualStrings(
+        "See\n  \x1b[34mhttps://example.com/docs\x1b[0m\n  now",
+        wrapped,
+    );
 }
 
 test "utf8DisplayWidth counts wide and combining codepoints" {
