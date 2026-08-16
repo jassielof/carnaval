@@ -77,6 +77,8 @@ pub const renderTreeAlloc = tree.renderAlloc;
 pub const Canvas = @import("canvas.zig").Canvas;
 pub const whitespace = @import("whitespace.zig");
 pub const fillWhitespaceAlloc = whitespace.fillAlloc;
+pub const runes = @import("runes.zig");
+pub const styleRunesAlloc = runes.styleRunesAlloc;
 
 comptime {
     std.testing.refAllDecls(@This());
