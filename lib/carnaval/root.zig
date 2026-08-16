@@ -75,6 +75,8 @@ pub const TreeNode = tree.TreeNode;
 pub const TreeOptions = tree.TreeOptions;
 pub const renderTreeAlloc = tree.renderAlloc;
 pub const Canvas = @import("canvas.zig").Canvas;
+pub const whitespace = @import("whitespace.zig");
+pub const fillWhitespaceAlloc = whitespace.fillAlloc;
 
 comptime {
     std.testing.refAllDecls(@This());
