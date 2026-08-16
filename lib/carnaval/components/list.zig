@@ -25,6 +25,8 @@ pub const ListOptions = struct {
     align_markers: bool = true,
     /// Optionally selects an item style by zero-based sibling index.
     item_style_fn: ?*const fn (usize) Style = null,
+    /// Optionally returns a custom marker for each zero-based sibling index.
+    marker_fn: ?*const fn (usize, []u8) anyerror![]const u8 = null,
 };
 
 pub const ListItem = struct {
@@ -103,7 +105,7 @@ fn renderEntry(
     options: ListOptions,
 ) anyerror!void {
     var marker_buf: [32]u8 = undefined;
-    const marker = try markerFor(options.style, index, &marker_buf);
+    const marker = if (options.marker_fn) |callback| try callback(index, &marker_buf) else try markerFor(options.style, index, &marker_buf);
 
     try writeDepthIndent(writer, options, depth);
     try writeMarker(writer, options, marker, marker_width);
