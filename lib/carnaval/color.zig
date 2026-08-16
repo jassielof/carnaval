@@ -206,6 +206,24 @@ pub fn blend1dAlloc(allocator: std.mem.Allocator, steps: usize, stops: []const C
     return result;
 }
 
+/// The blend2dAlloc function returns a row-major `width` by `height` gradient interpolated along `angle_degrees`.
+pub fn blend2dAlloc(allocator: std.mem.Allocator, width: usize, height: usize, angle_degrees: f32, stops: []const Color) ![]Color {
+    if (width == 0 or height == 0) return allocator.alloc(Color, 0);
+    if (stops.len == 0) return error.NoColorStops;
+    const result = try allocator.alloc(Color, width * height);
+    const radians = angle_degrees * std.math.pi / 180;
+    const cos_angle = @cos(radians);
+    const sin_angle = @sin(radians);
+    const diagonal = @max(@abs(cos_angle) * @as(f32, @floatFromInt(width - 1)) + @abs(sin_angle) * @as(f32, @floatFromInt(height - 1)), 1);
+    for (0..height) |y| for (0..width) |x| {
+        const projection = (@as(f32, @floatFromInt(x)) * cos_angle + @as(f32, @floatFromInt(y)) * sin_angle) / diagonal;
+        const position = std.math.clamp(projection, 0, 1) * @as(f32, @floatFromInt(stops.len - 1));
+        const stop_index: usize = @intFromFloat(@floor(position));
+        result[y * width + x] = if (stop_index + 1 >= stops.len) stops[stops.len - 1] else blend(stops[stop_index], stops[stop_index + 1], position - @as(f32, @floatFromInt(stop_index)));
+    };
+    return result;
+}
+
 fn channel(a: u8, b: u8, amount: f32) u8 {
     return @intFromFloat(@round(@as(f32, @floatFromInt(a)) + (@as(f32, @floatFromInt(b)) - @as(f32, @floatFromInt(a))) * amount));
 }
@@ -374,4 +392,11 @@ test "blend1dAlloc interpolates every stop" {
     const colors = try blend1dAlloc(std.testing.allocator, 3, &.{ Color.rgb(0, 0, 0), Color.rgb(255, 255, 255) });
     defer std.testing.allocator.free(colors);
     try std.testing.expectEqualDeep(Color.rgb(128, 128, 128), colors[1]);
+}
+
+test "blend2dAlloc produces row-major gradients" {
+    const colors = try blend2dAlloc(std.testing.allocator, 2, 1, 0, &.{ Color.rgb(0, 0, 0), Color.rgb(255, 255, 255) });
+    defer std.testing.allocator.free(colors);
+    try std.testing.expectEqualDeep(Color.rgb(0, 0, 0), colors[0]);
+    try std.testing.expectEqualDeep(Color.rgb(255, 255, 255), colors[1]);
 }

@@ -11,6 +11,7 @@ pub const lighten = color.lighten;
 pub const darken = color.darken;
 pub const complementary = color.complementary;
 pub const blend1dAlloc = color.blend1dAlloc;
+pub const blend2dAlloc = color.blend2dAlloc;
 pub const Border = @import("Border.zig");
 pub const Insets = @import("Insets.zig");
 pub const list = @import("components/list.zig");
