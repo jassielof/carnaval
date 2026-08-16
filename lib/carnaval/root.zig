@@ -57,6 +57,10 @@ pub const height = layout.height;
 pub const size = layout.size;
 pub const joinHorizontalAlloc = layout.joinHorizontalAlloc;
 pub const joinVerticalAlloc = layout.joinVerticalAlloc;
+pub const place = @import("place.zig");
+pub const placeAlloc = place.placeAlloc;
+pub const placeHorizontalAlloc = place.placeHorizontalAlloc;
+pub const placeVerticalAlloc = place.placeVerticalAlloc;
 
 comptime {
     std.testing.refAllDecls(@This());
