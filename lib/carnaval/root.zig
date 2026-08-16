@@ -74,6 +74,7 @@ pub const tree = @import("components/tree.zig");
 pub const TreeNode = tree.TreeNode;
 pub const TreeOptions = tree.TreeOptions;
 pub const renderTreeAlloc = tree.renderAlloc;
+pub const Canvas = @import("canvas.zig").Canvas;
 
 comptime {
     std.testing.refAllDecls(@This());
