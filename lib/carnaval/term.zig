@@ -586,6 +586,11 @@ fn utf8Unit(s: []const u8, index: usize) Utf8Unit {
     return .{ .len = len, .display_width = codepointWidth(cp) };
 }
 
+/// The displayUnitAt function returns the next UTF-8 unit and its terminal-cell width.
+pub fn displayUnitAt(s: []const u8, index: usize) Utf8Unit {
+    return utf8Unit(s, index);
+}
+
 fn codepointWidth(cp: u21) usize {
     if (cp == 0) return 0;
     if (cp < 32 or (cp >= 0x7f and cp < 0xa0)) return 0;
