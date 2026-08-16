@@ -188,6 +188,24 @@ pub fn complementary(value: Color) Color {
     return Color.rgb(255 - rgb.r, 255 - rgb.g, 255 - rgb.b);
 }
 
+/// The blend1dAlloc function returns `steps` colors interpolated across the supplied stops.
+pub fn blend1dAlloc(allocator: std.mem.Allocator, steps: usize, stops: []const Color) ![]Color {
+    if (steps == 0) return allocator.alloc(Color, 0);
+    if (stops.len == 0) return error.NoColorStops;
+    const result = try allocator.alloc(Color, steps);
+    if (steps == 1 or stops.len == 1) {
+        @memset(result, stops[0]);
+        return result;
+    }
+    for (result, 0..) |*item, index| {
+        const position = @as(f32, @floatFromInt(index)) / @as(f32, @floatFromInt(steps - 1));
+        const scaled = position * @as(f32, @floatFromInt(stops.len - 1));
+        const stop_index: usize = @intFromFloat(@floor(scaled));
+        item.* = if (stop_index + 1 >= stops.len) stops[stops.len - 1] else blend(stops[stop_index], stops[stop_index + 1], scaled - @as(f32, @floatFromInt(stop_index)));
+    }
+    return result;
+}
+
 fn channel(a: u8, b: u8, amount: f32) u8 {
     return @intFromFloat(@round(@as(f32, @floatFromInt(a)) + (@as(f32, @floatFromInt(b)) - @as(f32, @floatFromInt(a))) * amount));
 }
@@ -350,4 +368,10 @@ test "color utilities use RGB interpolation" {
     try std.testing.expectEqualDeep(Color.rgb(128, 0, 128), blend(Color.rgb(255, 0, 0), Color.rgb(0, 0, 255), 0.5));
     try std.testing.expectEqualDeep(Color.rgb(0, 255, 255), complementary(Color.rgb(255, 0, 0)));
     try std.testing.expectEqualDeep(Color.rgb(128, 128, 128), lighten(.{ .ansi16 = .black }, 0.5));
+}
+
+test "blend1dAlloc interpolates every stop" {
+    const colors = try blend1dAlloc(std.testing.allocator, 3, &.{ Color.rgb(0, 0, 0), Color.rgb(255, 255, 255) });
+    defer std.testing.allocator.free(colors);
+    try std.testing.expectEqualDeep(Color.rgb(128, 128, 128), colors[1]);
 }
