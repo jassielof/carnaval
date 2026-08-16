@@ -61,6 +61,9 @@ pub const place = @import("place.zig");
 pub const placeAlloc = place.placeAlloc;
 pub const placeHorizontalAlloc = place.placeHorizontalAlloc;
 pub const placeVerticalAlloc = place.placeVerticalAlloc;
+pub const ranges = @import("ranges.zig");
+pub const Range = ranges.Range;
+pub const styleRangesAlloc = ranges.styleRangesAlloc;
 
 comptime {
     std.testing.refAllDecls(@This());
