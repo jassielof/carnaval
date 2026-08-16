@@ -537,6 +537,18 @@ test "markdown table exact output" {
     );
 }
 
+test "markdown table escapes pipes and backslashes" {
+    const rendered = try renderTableAlloc(
+        std.testing.allocator,
+        &.{"A"},
+        &.{&.{"one|two\\three"}},
+        .markdown,
+    );
+    defer std.testing.allocator.free(rendered);
+
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "one\\|two\\\\three") != null);
+}
+
 fn renderTableAllocTest(
     headers: []const []const u8,
     rows: []const []const []const u8,
